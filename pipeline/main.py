@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 
 import cv2
+import pdfplumber
 import numpy as np
 from PIL import Image
+
+BATCH_SIZE = 1
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,8 +46,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=None,
-        help="Pages per batch (defaults: 1 for hf, 28 for vllm).",
+        default=1,
+        help="Pages per batch (default: 1).",
     )
     parser.add_argument(
         "--max-output-tokens",
@@ -99,12 +102,6 @@ def configure_environment(args: argparse.Namespace) -> None:
         os.environ["TORCH_ATTN"] = args.attn_impl
 
 
-def resolve_batch_size(args: argparse.Namespace) -> int:
-    if args.batch_size is not None:
-        return args.batch_size
-    return 1 if args.method == "hf" else 28
-
-
 def build_generate_kwargs(args: argparse.Namespace) -> dict:
     generate_kwargs = {
         "include_images": args.include_images,
@@ -118,6 +115,19 @@ def build_generate_kwargs(args: argparse.Namespace) -> dict:
         if args.max_retries is not None:
             generate_kwargs["max_retries"] = args.max_retries
     return generate_kwargs
+
+
+def is_pdf_native(file_path: Path) -> bool:
+    if file_path.suffix.lower() != ".pdf":
+        return False
+    try:
+        with pdfplumber.open(str(file_path)) as pdf:
+            if not pdf.pages:
+                return False
+            text = (pdf.pages[0].extract_text() or "").strip()
+            return bool(text)
+    except Exception:
+        return False
 
 
 _PADDLE_ORIENTATION_MODEL = None
@@ -314,8 +324,6 @@ def run():
     from chandra.scripts.cli import get_supported_files, save_merged_output
     from chandra.prompts import PROMPT_MAPPING
 
-    args.batch_size = resolve_batch_size(args)
-
     files: List[Path] = get_supported_files(args.input_path)
     if not files:
         raise SystemExit(f"No supported files found under {args.input_path}")
@@ -328,6 +336,12 @@ def run():
     base_prompt = f"{PROMPT_MAPPING['ocr_layout']}{CUSTOM_PROMPT_SUFFIX}"
 
     def process_file(file_path: Path) -> None:
+        if file_path.suffix.lower() == ".pdf":
+            pdf_type = "native (digital)" if is_pdf_native(file_path) else "scanned (image-based)"
+            print(f"  PDF type: {pdf_type}")
+        else:
+            print("  Input type: image (treated as scanned)")
+
         config = {"page_range": args.page_range} if args.page_range else {}
         images = load_file(str(file_path), config)
         print(f"  -> {len(images)} page(s)")
@@ -335,8 +349,8 @@ def run():
         images = normalize_pages(images, save_dir=rotated_dir, prefix=file_path.stem)
 
         all_results = []
-        for start in range(0, len(images), args.batch_size):
-            end = min(start + args.batch_size, len(images))
+        for start in range(0, len(images), BATCH_SIZE):
+            end = min(start + BATCH_SIZE, len(images))
             print(f"     batching pages {start + 1}-{end}")
             batch_items = [
                 BatchInputItem(
@@ -347,6 +361,7 @@ def run():
                 for image in images[start:end]
             ]
             results = inference.generate(batch_items, **generate_kwargs)
+            print(results)
             all_results.extend(results)
 
         print_component_bboxes(file_path.name, all_results)

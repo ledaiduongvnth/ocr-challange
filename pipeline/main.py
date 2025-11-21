@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import tempfile
+from textwrap import dedent
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
-import json
 
 import cv2
 import numpy as np
@@ -33,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--method",
         choices=("hf", "vllm"),
-        default="hf",
+        default="vllm",
         help="Inference backend. Use 'hf' for local GPU, 'vllm' for server.",
     )
     parser.add_argument(
@@ -92,16 +91,33 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def add_chandra_repo_to_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[1] / "chandra"
-    if not repo_root.exists():
-        raise SystemExit(
-            f"Chandra repo not found at {repo_root}. Clone https://github.com/datalab-to/chandra.git first."
-        )
-    repo_str = str(repo_root)
-    if repo_str not in sys.path:
-        sys.path.insert(0, repo_str)
-    return repo_root
+def configure_environment(args: argparse.Namespace) -> None:
+    os.environ["MODEL_CHECKPOINT"] = args.checkpoint
+    if args.device:
+        os.environ["TORCH_DEVICE"] = args.device
+    if args.attn_impl:
+        os.environ["TORCH_ATTN"] = args.attn_impl
+
+
+def resolve_batch_size(args: argparse.Namespace) -> int:
+    if args.batch_size is not None:
+        return args.batch_size
+    return 1 if args.method == "hf" else 28
+
+
+def build_generate_kwargs(args: argparse.Namespace) -> dict:
+    generate_kwargs = {
+        "include_images": args.include_images,
+        "include_headers_footers": args.include_headers_footers,
+    }
+    if args.max_output_tokens is not None:
+        generate_kwargs["max_output_tokens"] = args.max_output_tokens
+    if args.method == "vllm":
+        if args.max_workers is not None:
+            generate_kwargs["max_workers"] = args.max_workers
+        if args.max_retries is not None:
+            generate_kwargs["max_retries"] = args.max_retries
+    return generate_kwargs
 
 
 _PADDLE_ORIENTATION_MODEL = None
@@ -261,37 +277,36 @@ def normalize_pages(
     return normalized
 
 
-def save_layout_output(output_dir: Path, file_name: str, results: List) -> Path:
-    """Persist layout chunks per page as JSON."""
-    safe_name = Path(file_name).stem
-    file_output_dir = output_dir / safe_name
-    file_output_dir.mkdir(parents=True, exist_ok=True)
-    layout_payload = []
+def print_component_bboxes(file_name: str, results: List) -> None:
+    """Log component bounding boxes (tables, text blocks, etc.) per page."""
+    print(f"  components for {file_name}:")
     for page_idx, result in enumerate(results, 1):
-        layout_payload.append(
-            {
-                "page": page_idx,
-                "chunks": result.chunks,
-            }
-        )
-    layout_path = file_output_dir / f"{safe_name}_layout.json"
-    layout_path.write_text(
-        json.dumps(layout_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    print(f"  layout saved -> {layout_path}")
-    return layout_path
+        chunks = getattr(result, "chunks", None)
+        if not chunks:
+            continue
+        for comp_idx, chunk in enumerate(chunks, 1):
+            comp_type = (
+                chunk.get("type")
+                or chunk.get("label")
+                or chunk.get("category")
+                or "unknown"
+            )
+            bbox = chunk.get("bbox") or chunk.get("box") or chunk.get("page_box")
+            print(f"    page {page_idx} #{comp_idx}: {comp_type} bbox={bbox}")
+
+
+CUSTOM_PROMPT_SUFFIX = dedent(
+    """\
+    Note:
+    - If a cell in the table is empty (no text or empty string), keep the cell in the markdown.
+    - Header or footer lines can stick together; remember to separate them.
+    """
+)
 
 
 def run():
     args = parse_args()
-    add_chandra_repo_to_path()
-
-    os.environ.setdefault("MODEL_CHECKPOINT", args.checkpoint)
-    os.environ["MODEL_CHECKPOINT"] = args.checkpoint
-    if args.device:
-        os.environ["TORCH_DEVICE"] = args.device
-    if args.attn_impl:
-        os.environ["TORCH_ATTN"] = args.attn_impl
+    configure_environment(args)
 
     from chandra.input import load_file
     from chandra.model import InferenceManager
@@ -299,12 +314,7 @@ def run():
     from chandra.scripts.cli import get_supported_files, save_merged_output
     from chandra.prompts import PROMPT_MAPPING
 
-    if args.method == "hf":
-        if args.batch_size is None:
-            args.batch_size = 1
-    else:
-        if args.batch_size is None:
-            args.batch_size = 28
+    args.batch_size = resolve_batch_size(args)
 
     files: List[Path] = get_supported_files(args.input_path)
     if not files:
@@ -314,9 +324,10 @@ def run():
     print(f"Running Chandra ({args.method}) with checkpoint '{args.checkpoint}' on {len(files)} file(s)...")
 
     inference = InferenceManager(method=args.method)
+    generate_kwargs = build_generate_kwargs(args)
+    base_prompt = f"{PROMPT_MAPPING['ocr_layout']}{CUSTOM_PROMPT_SUFFIX}"
 
-    for idx, file_path in enumerate(files, 1):
-        print(f"[{idx}/{len(files)}] {file_path.name}")
+    def process_file(file_path: Path) -> None:
         config = {"page_range": args.page_range} if args.page_range else {}
         images = load_file(str(file_path), config)
         print(f"  -> {len(images)} page(s)")
@@ -326,28 +337,19 @@ def run():
         all_results = []
         for start in range(0, len(images), args.batch_size):
             end = min(start + args.batch_size, len(images))
-            custom_suffix = """ Note: 
-                                - If a cell in the table is empty (in terms of content, specifically no text or empty string). Make sure that cell still exists in the markdown.
-                                - In header or footer content, lines can easily get stuck together. Remember to separate them. You often make mistakes there.
-                            """
-            batch_items = [
-                BatchInputItem(image=image, prompt_type="ocr_layout", prompt=f"{PROMPT_MAPPING['ocr_layout']}{custom_suffix}") for image in images[start:end]
-            ]
             print(f"     batching pages {start + 1}-{end}")
-            generate_kwargs = {
-                "include_images": args.include_images,
-                "include_headers_footers": args.include_headers_footers,
-            }
-            if args.max_output_tokens is not None:
-                generate_kwargs["max_output_tokens"] = args.max_output_tokens
-            if args.method == "vllm":
-                if args.max_workers is not None:
-                    generate_kwargs["max_workers"] = args.max_workers
-                if args.max_retries is not None:
-                    generate_kwargs["max_retries"] = args.max_retries
+            batch_items = [
+                BatchInputItem(
+                    image=image,
+                    prompt_type="ocr_layout",
+                    prompt=base_prompt,
+                )
+                for image in images[start:end]
+            ]
             results = inference.generate(batch_items, **generate_kwargs)
             all_results.extend(results)
 
+        print_component_bboxes(file_path.name, all_results)
         save_merged_output(
             args.output_dir,
             file_path.name,
@@ -356,7 +358,10 @@ def run():
             save_html=not args.no_html,
             paginate_output=args.paginate_output,
         )
-        save_layout_output(args.output_dir, file_path.name, all_results)
+
+    for idx, file_path in enumerate(files, 1):
+        print(f"[{idx}/{len(files)}] {file_path.name}")
+        process_file(file_path)
 
 
 if __name__ == "__main__":

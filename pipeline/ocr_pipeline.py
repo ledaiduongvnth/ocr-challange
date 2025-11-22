@@ -5,10 +5,6 @@ from typing import List, Callable
 
 from chandra.model.schema import BatchInputItem
 
-from orientation import normalize_page_images
-from components import log_component_bboxes
-
-
 def run_ocr_pipeline(
     file_path: Path,
     args,
@@ -25,9 +21,6 @@ def run_ocr_pipeline(
         config = {"page_range": args.page_range} if args.page_range else {}
         images = loader(str(file_path), config)
         print(f"  -> {len(images)} page(s)")
-        rotated_dir = args.output_dir / "rotated_pages" / file_path.stem
-        # TODO
-        # images = normalize_page_images(images, save_dir=rotated_dir, prefix=file_path.stem)
     else:
         print(f"  -> using preloaded images ({len(images)} page(s))")
 

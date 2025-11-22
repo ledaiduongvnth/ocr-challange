@@ -85,77 +85,6 @@ def _find_index(value: float, coords: list[float]) -> int:
     raise ValueError(f"Value {value} did not match any coordinate line.")
 
 
-def extract_pdf_table_cells(
-    pdf_path: Path,
-    page_index: int = 0,
-    table_index: int = 0,
-) -> list[dict[str, float | int | str | None]]:
-    pdf_path = Path(pdf_path)
-    if not pdf_path.exists():
-        raise FileNotFoundError(pdf_path)
-
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        if not pdf.pages:
-            raise RuntimeError(f"No pages found in {pdf_path}")
-        if page_index >= len(pdf.pages):
-            raise ValueError(f"PDF only has {len(pdf.pages)} pages, cannot access index {page_index}")
-
-        page = pdf.pages[page_index]
-        tables = page.find_tables()
-        if not tables:
-            raise RuntimeError("pdfplumber could not detect table geometry on the requested page")
-        if table_index >= len(tables):
-            raise ValueError(
-                f"Requested table index {table_index} is unavailable; only {len(tables)} table(s) detected."
-            )
-
-        table = tables[table_index]
-        cells: list[dict[str, float | int | str | None]] = []
-        for bbox in getattr(table, "cells", []) or []:
-            if isinstance(bbox, dict):
-                box = (
-                    bbox.get("x0"),
-                    bbox.get("top"),
-                    bbox.get("x1"),
-                    bbox.get("bottom"),
-                )
-            elif isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
-                box = bbox[:4]
-            else:
-                box = (
-                    getattr(bbox, "x0", None),
-                    getattr(bbox, "top", None),
-                    getattr(bbox, "x1", None),
-                    getattr(bbox, "bottom", None),
-                )
-
-            if None in box:
-                continue
-
-            x0, top, x1, bottom = box
-            extracted = page.within_bbox((x0, top, x1, bottom)).extract_text()
-            text = (extracted or "").strip()
-
-            cells.append(
-                {
-                    "text": text,
-                    "x0": float(x0),
-                    "x1": float(x1),
-                    "top": float(top),
-                    "bottom": float(bottom),
-                    "row": None,
-                    "col": None,
-                }
-            )
-
-        if not cells:
-            raise RuntimeError(
-                "Matched table does not expose cell geometry. Try adjusting pdfplumber table settings."
-            )
-
-        return cells
-
-
 def render_native_cells_as_html(cells: list[dict[str, float | int | str | None]]) -> str:
     x_values: list[float] = []
     y_values: list[float] = []
@@ -223,22 +152,6 @@ def render_native_cells_as_html(cells: list[dict[str, float | int | str | None]]
         rows_html.append("  <tr>\n" + "\n".join(cells_html) + "\n  </tr>")
 
     return render_table_html("\n".join(rows_html))
-
-
-def build_native_batch_output(html_text: str) -> BatchOutputItem:
-    """Wrap native PDF table HTML into a BatchOutputItem for downstream saving."""
-    return BatchOutputItem(
-        markdown=html_text,
-        html=html_text,
-        chunks={},
-        raw=html_text,
-        page_box=[0, 0, 0, 0],
-        token_count=0,
-        images={},
-        error=False,
-    )
-
-
 def build_native_outputs(
     file_path: Path,
     layout_results: list | None = None,

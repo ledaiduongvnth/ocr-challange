@@ -47,7 +47,8 @@ def run():
     inference = InferenceManager(method=args.method)
     batch_size = determine_batch_size(args)
     generate_kwargs = build_inference_options(args)
-    base_prompt = f"{PROMPT_MAPPING['ocr_layout']}"
+    layout_prompt = PROMPT_MAPPING["ocr_layout"]
+    ocr_prompt = PROMPT_MAPPING["ocr"]
 
     for idx, file_path in enumerate(files, 1):
         print(f"[{idx}/{len(files)}] {file_path.name}")
@@ -62,7 +63,7 @@ def run():
                 args=args,
                 inference=inference,
                 generate_kwargs=generate_kwargs,
-                base_prompt=base_prompt,
+                base_prompt=layout_prompt,
                 batch_size=batch_size,
                 loader=load_file,
             )
@@ -84,7 +85,7 @@ def run():
                 args=args,
                 inference=inference,
                 generate_kwargs=generate_kwargs,
-                base_prompt=base_prompt,
+                base_prompt=ocr_prompt,
                 batch_size=batch_size,
                 loader=load_file,
                 batch_input_cls=BatchInputItem,

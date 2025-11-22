@@ -100,8 +100,6 @@ def build_inference_options(args: argparse.Namespace) -> dict:
     }
     if args.max_output_tokens is not None:
         options["max_output_tokens"] = args.max_output_tokens
-    if args.vllm_timeout is not None:
-        options["vllm_timeout"] = args.vllm_timeout
     if args.method == "vllm":
         if args.max_workers is not None:
             options["max_workers"] = args.max_workers

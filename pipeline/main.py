@@ -15,6 +15,7 @@ from cli_utils import (
 )
 from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
+from layout_analysis import analyze_layout
 
 
 CUSTOM_PROMPT_SUFFIX = dedent(
@@ -46,16 +47,36 @@ def run():
     inference = InferenceManager(method=args.method)
     batch_size = determine_batch_size(args)
     generate_kwargs = build_inference_options(args)
-    base_prompt = f"{PROMPT_MAPPING['ocr_layout']}{CUSTOM_PROMPT_SUFFIX}"
+    base_prompt = f"{PROMPT_MAPPING['ocr_layout']}"
 
     for idx, file_path in enumerate(files, 1):
         print(f"[{idx}/{len(files)}] {file_path.name}")
         is_pdf = file_path.suffix.lower() == ".pdf"
         is_native_pdf = is_pdf and is_digital_pdf(file_path)
 
+        layout_images = None
+        layout_results = None
+        try:
+            layout_images, layout_results = analyze_layout(
+                file_path=file_path,
+                args=args,
+                inference=inference,
+                generate_kwargs=generate_kwargs,
+                base_prompt=base_prompt,
+                batch_size=batch_size,
+                loader=load_file,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Layout analysis failed ({exc}); continuing without layout hints.")
+
         results = None
         if is_native_pdf:
-            results = build_native_outputs(file_path)
+            results = build_native_outputs(
+                file_path,
+                layout_results=layout_results,
+                layout_images=layout_images,
+                debug_dir=args.output_dir / "debug_native",
+            )
 
         if results is None:
             results = run_ocr_pipeline(
@@ -67,6 +88,8 @@ def run():
                 batch_size=batch_size,
                 loader=load_file,
                 batch_input_cls=BatchInputItem,
+                images=layout_images,
+                layout_results=layout_results,
             )
 
         save_merged_output(

@@ -55,17 +55,22 @@ def run():
         is_pdf = file_path.suffix.lower() == ".pdf"
         is_native_pdf = is_pdf and is_digital_pdf(file_path)
 
-        layout_images = None
-        layout_results = None
+        layout_images = []
+        layout_results = []
         try:
-            layout_images, layout_results = analyze_layout(
+            load_config = {"page_range": args.page_range} if args.page_range else {}
+            layout_images = load_file(str(file_path), load_config)
+            print(f"  [layout] loaded {len(layout_images)} page(s)")
+            # Optionally normalize layout images if needed
+            # layout_images = normalize_page_images(layout_images, save_dir=None, prefix=f\"{file_path.stem}_layout\")
+
+            _, layout_results = analyze_layout(
                 file_path=file_path,
-                args=args,
-                inference=inference,
-                generate_kwargs=generate_kwargs,
-                base_prompt=layout_prompt,
+                images=layout_images,
+                infer_fn=lambda items: inference.generate(items, **generate_kwargs),
+                prompt=layout_prompt,
                 batch_size=batch_size,
-                loader=load_file,
+                debug_dir=args.output_dir / "debug_layout",
             )
         except Exception as exc:  # pragma: no cover - defensive
             print(f"Layout analysis failed ({exc}); continuing without layout hints.")

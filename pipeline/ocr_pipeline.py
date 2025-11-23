@@ -18,7 +18,8 @@ def run_ocr_pipeline(
     layout_results: List | None = None,
     ) -> List:
     if base_prompt is None:
-        from chandra.prompts import PROMPT_MAPPING
+        # from chandra.prompts import PROMPT_MAPPING
+        from chandra_prompts import PROMPT_MAPPING
 
         base_prompt = PROMPT_MAPPING["ocr"]
     if images is None:

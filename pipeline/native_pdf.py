@@ -85,77 +85,6 @@ def _find_index(value: float, coords: list[float]) -> int:
     raise ValueError(f"Value {value} did not match any coordinate line.")
 
 
-def extract_pdf_table_cells(
-    pdf_path: Path,
-    page_index: int = 0,
-    table_index: int = 0,
-) -> list[dict[str, float | int | str | None]]:
-    pdf_path = Path(pdf_path)
-    if not pdf_path.exists():
-        raise FileNotFoundError(pdf_path)
-
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        if not pdf.pages:
-            raise RuntimeError(f"No pages found in {pdf_path}")
-        if page_index >= len(pdf.pages):
-            raise ValueError(f"PDF only has {len(pdf.pages)} pages, cannot access index {page_index}")
-
-        page = pdf.pages[page_index]
-        tables = page.find_tables()
-        if not tables:
-            raise RuntimeError("pdfplumber could not detect table geometry on the requested page")
-        if table_index >= len(tables):
-            raise ValueError(
-                f"Requested table index {table_index} is unavailable; only {len(tables)} table(s) detected."
-            )
-
-        table = tables[table_index]
-        cells: list[dict[str, float | int | str | None]] = []
-        for bbox in getattr(table, "cells", []) or []:
-            if isinstance(bbox, dict):
-                box = (
-                    bbox.get("x0"),
-                    bbox.get("top"),
-                    bbox.get("x1"),
-                    bbox.get("bottom"),
-                )
-            elif isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
-                box = bbox[:4]
-            else:
-                box = (
-                    getattr(bbox, "x0", None),
-                    getattr(bbox, "top", None),
-                    getattr(bbox, "x1", None),
-                    getattr(bbox, "bottom", None),
-                )
-
-            if None in box:
-                continue
-
-            x0, top, x1, bottom = box
-            extracted = page.within_bbox((x0, top, x1, bottom)).extract_text()
-            text = (extracted or "").strip()
-
-            cells.append(
-                {
-                    "text": text,
-                    "x0": float(x0),
-                    "x1": float(x1),
-                    "top": float(top),
-                    "bottom": float(bottom),
-                    "row": None,
-                    "col": None,
-                }
-            )
-
-        if not cells:
-            raise RuntimeError(
-                "Matched table does not expose cell geometry. Try adjusting pdfplumber table settings."
-            )
-
-        return cells
-
-
 def render_native_cells_as_html(cells: list[dict[str, float | int | str | None]]) -> str:
     x_values: list[float] = []
     y_values: list[float] = []
@@ -223,28 +152,126 @@ def render_native_cells_as_html(cells: list[dict[str, float | int | str | None]]
         rows_html.append("  <tr>\n" + "\n".join(cells_html) + "\n  </tr>")
 
     return render_table_html("\n".join(rows_html))
-
-
-def build_native_batch_output(html_text: str) -> BatchOutputItem:
-    """Wrap native PDF table HTML into a BatchOutputItem for downstream saving."""
-    return BatchOutputItem(
-        markdown=html_text,
-        html=html_text,
-        chunks={},
-        raw=html_text,
-        page_box=[0, 0, 0, 0],
-        token_count=0,
-        images={},
-        error=False,
-    )
-
-
-def build_native_outputs(file_path: Path) -> list[BatchOutputItem] | None:
-    """Extract table HTML for native PDFs and return as BatchOutputItem list."""
+def build_native_outputs(
+    file_path: Path,
+    layout_results: list | None = None,
+    layout_images: list | None = None,
+    debug_dir: Path | None = None,
+) -> list[BatchOutputItem] | None:
+    """Extract table/text for native PDFs and return as BatchOutputItem list."""
     try:
-        cells = extract_pdf_table_cells(file_path)
-        html_text = render_native_cells_as_html(cells)
-        return [build_native_batch_output(html_text)]
+        if layout_results:
+            assert layout_images is not None and len(layout_images) == len(
+                layout_results
+            ), "layout_images must align with layout_results for native extraction"
+            outputs: list[BatchOutputItem] = []
+            if debug_dir:
+                debug_dir.mkdir(parents=True, exist_ok=True)
+            crop_idx = 0
+            with pdfplumber.open(str(file_path)) as pdf:
+                for page_idx, layout in enumerate(layout_results, 0):
+                    if page_idx >= len(pdf.pages):
+                        break
+                    page = pdf.pages[page_idx]
+                    page_width, page_height = page.width, page.height
+                    img_width = img_height = None
+                    if layout_images and page_idx < len(layout_images):
+                        img_width, img_height = layout_images[page_idx].size
+                    chunks = getattr(layout, "chunks", None) or []
+                    for chunk in chunks:
+                        bbox = chunk.get("bbox")
+                        if not bbox or len(bbox) < 4:
+                            continue
+                        x0, y0, x1, y1 = bbox[:4]
+                        label = (chunk.get("label") or "").lower()
+                        # If we have corresponding layout image dimensions, scale bbox to PDF coordinates.
+                        if img_width and img_height:
+                            scale_x = page_width / max(1, img_width)
+                            scale_y = page_height / max(1, img_height)
+                            x0 *= scale_x
+                            x1 *= scale_x
+                            y0 *= scale_y
+                            y1 *= scale_y
+                        # Pad and clamp to page bounds to avoid pdfplumber errors.
+                        pad = 5 if label in {"table", "form"} else 3
+                        x0 = max(0, min(x0 - pad, page_width))
+                        y0 = max(0, min(y0 - pad, page_height))
+                        x1 = max(x0 + 1e-3, min(x1 + pad, page_width))
+                        y1 = max(y0 + 1e-3, min(y1 + pad, page_height))
+                        cropped_page = page.within_bbox((x0, y0, x1, y1))
+                        if not cropped_page:
+                            continue
+                        if debug_dir:
+                            try:
+                                img = cropped_page.to_image(resolution=200).original
+                                crop_idx += 1
+                                crop_path = debug_dir / f"{file_path.stem}_p{page_idx+1}_crop{crop_idx}.png"
+                                img.save(crop_path)
+                            except Exception:
+                                pass
+                        text = (cropped_page.extract_text() or "").strip()
+                        # If this chunk appears to be a table, try table cell extraction within the crop.
+                        if label == "table":
+                            try:
+                                table_cells = []
+                                tables = cropped_page.find_tables()
+                                cell_counts = [
+                                    len(getattr(tbl, "cells", []) or []) for tbl in tables
+                                ]
+                                print(
+                                    f"    tables found: {len(tables)}, cell_counts={cell_counts}"
+                                )
+                                for tbl in tables:
+                                    for cell_bbox in getattr(tbl, "cells", []) or []:
+                                        if isinstance(cell_bbox, dict):
+                                            box = (
+                                                cell_bbox.get("x0"),
+                                                cell_bbox.get("top"),
+                                                cell_bbox.get("x1"),
+                                                cell_bbox.get("bottom"),
+                                            )
+                                        elif isinstance(cell_bbox, (list, tuple)) and len(cell_bbox) >= 4:
+                                            box = cell_bbox[:4]
+                                        else:
+                                            box = (
+                                                getattr(cell_bbox, "x0", None),
+                                                getattr(cell_bbox, "top", None),
+                                                getattr(cell_bbox, "x1", None),
+                                                getattr(cell_bbox, "bottom", None),
+                                            )
+                                        if None in box:
+                                            continue
+                                        cell_text = (
+                                            page.within_bbox(box).extract_text() or ""
+                                        ).strip()
+                                        table_cells.append(
+                                            {
+                                                "text": cell_text,
+                                                "x0": float(box[0]),
+                                                "x1": float(box[2]),
+                                                "top": float(box[1]),
+                                                "bottom": float(box[3]),
+                                            }
+                                        )
+                                if table_cells:
+                                    print(f"    table_cells: {len(table_cells)}")
+                                    text = render_native_cells_as_html(table_cells)
+                            except Exception:
+                                pass
+                        outputs.append(
+                            BatchOutputItem(
+                                markdown=text,
+                                html=text,
+                                chunks={},
+                                raw=text,
+                                page_box=[x0, y0, x1, y1],
+                                token_count=0,
+                                images={},
+                                error=False,
+                            )
+                        )
+            if outputs:
+                return outputs
     except Exception as exc:
         print(f"  Native PDF table extraction failed ({exc}); falling back to OCR.")
         return None

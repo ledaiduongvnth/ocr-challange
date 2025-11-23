@@ -107,13 +107,14 @@ def run():
                     file_path=file_path,
                     args=args,
                     inference=inference,
-                generate_kwargs=generate_kwargs,
-                base_prompt=None,
-                batch_size=batch_size,
-                loader=load_file,
-                batch_input_cls=BatchInputItem,
-                images=layout_images,
-                layout_results=layout_results,
+                    generate_kwargs=generate_kwargs,
+                    base_prompt=None,
+                    batch_size=batch_size,
+                    loader=load_file,
+                    batch_input_cls=BatchInputItem,
+                    images=layout_images,
+                    layout_results=layout_results,
+                    debug_dir=args.output_dir / "debug_ocr_components",
                 )
 
         save_merged_output(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Callable
 
-from chandra.model.schema import BatchInputItem
+from chandra.model.schema import BatchInputItem, BatchOutputItem
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -16,12 +16,13 @@ def run_ocr_pipeline(
     batch_input_cls=BatchInputItem,
     images: List | None = None,
     layout_results: List | None = None,
-    ) -> List:
+    debug_dir: Path | None = None,
+    ) -> List[BatchOutputItem]:
     if base_prompt is None:
         # from chandra.prompts import PROMPT_MAPPING
         from chandra_prompts import PROMPT_MAPPING
 
-        base_prompt = PROMPT_MAPPING["ocr"]
+        base_prompt = PROMPT_MAPPING["ocr_layout"]
     if images is None:
         config = {"page_range": args.page_range} if args.page_range else {}
         images = loader(str(file_path), config)
@@ -29,7 +30,7 @@ def run_ocr_pipeline(
     else:
         print(f"  -> using preloaded images ({len(images)} page(s))")
 
-    all_results = []
+    outputs: List[BatchOutputItem] = []
     assert layout_results is not None and len(layout_results) == len(
         images
     ), "layout_results (from chandra_layout_analysis/pp_doclayout/native_pdf) must be provided and match number of pages"
@@ -49,12 +50,21 @@ def run_ocr_pipeline(
                 continue
             x0, y0 = int(x0), int(y0)
             x1, y1 = int(x1), int(y1)
+            label = (chunk.get("label") or chunk.get("type") or "").lower()
+            pad = 5 if label in {"table"} else 3
             # Clamp bounds
-            x0 = max(0, min(x0, page_image.width))
-            y0 = max(0, min(y0, page_image.height))
-            x1 = max(x0 + 1, min(x1, page_image.width))
-            y1 = max(y0 + 1, min(y1, page_image.height))
+            x0 = max(0, min(x0 - pad, page_image.width))
+            y0 = max(0, min(y0 - pad, page_image.height))
+            x1 = max(x0 + 1, min(x1 + pad, page_image.width))
+            y1 = max(y0 + 1, min(y1 + pad, page_image.height))
             cropped = page_image.crop((x0, y0, x1, y1))
+            if debug_dir:
+                try:
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    crop_path = debug_dir / f"{file_path.stem}_p{page_idx+1}_comp{len(component_items)+1}.png"
+                    cropped.save(crop_path)
+                except Exception:
+                    pass
             component_items.append(
                 batch_input_cls(
                     image=cropped,
@@ -68,6 +78,7 @@ def run_ocr_pipeline(
         end = min(start + batch_size, len(component_items))
         batch_kwargs = dict(generate_kwargs)
         results = inference.generate(component_items[start:end], **batch_kwargs)
-        all_results.extend(results)
+        for res in results or []:
+            outputs.append(res)
 
-    return all_results
+    return outputs

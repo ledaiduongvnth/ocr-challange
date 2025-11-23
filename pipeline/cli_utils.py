@@ -9,7 +9,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/home/zsv/Desktop/test-native.pdf"),
+        default=Path("/home/zsv/Desktop/scan.pdf"),
         help="File or directory containing PDFs/images. Defaults to /home/zsv/Desktop/test-native.pdf if omitted.",
     )
     parser.add_argument(
@@ -37,7 +37,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=1,
+        default=8,
         help="Pages per batch (default: 1).",
     )
     parser.add_argument(
@@ -85,7 +85,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--layout-backend",
         choices=("chandra", "ppdoclayout", "PicoDet_layout_1x_table"),
-        default="PicoDet_layout_1x_table",
+        default="ppdoclayout",
         help="Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), or 'PicoDet_layout_1x_table'.",
     )
     return parser.parse_args()

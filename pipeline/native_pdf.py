@@ -193,7 +193,7 @@ def build_native_outputs(
                             y0 *= scale_y
                             y1 *= scale_y
                         # Pad and clamp to page bounds to avoid pdfplumber errors.
-                        pad = 5 if label in {"table", "form"} else 3
+                        pad = 5 if label in {"table"} else 3
                         x0 = max(0, min(x0 - pad, page_width))
                         y0 = max(0, min(y0 - pad, page_height))
                         x1 = max(x0 + 1e-3, min(x1 + pad, page_width))

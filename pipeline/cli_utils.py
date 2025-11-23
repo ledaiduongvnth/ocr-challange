@@ -88,8 +88,13 @@ def parse_cli_args() -> argparse.Namespace:
         default="PicoDet_layout_1x_table",
         help="Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), or 'PicoDet_layout_1x_table'.",
     )
-    return parser.parse_args()
 
+    parser.add_argument(
+        "--marker",
+        action="store_true",
+        help="Using logic marker and vlm to convert pdf scan to html",
+    )
+    return parser.parse_args()
 
 def apply_env_overrides(args: argparse.Namespace) -> None:
     os.environ["MODEL_CHECKPOINT"] = args.checkpoint

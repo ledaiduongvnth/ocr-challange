@@ -17,7 +17,8 @@ from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
 from chandra_layout_analysis import chandra_analyze_layout
 from pp_doclayout import analyze_layout_pp_doclayout
-
+from marker.scripts.convert_single import convert_single_cli
+import sys
 
 CUSTOM_PROMPT_SUFFIX = dedent(
     """\
@@ -26,7 +27,28 @@ CUSTOM_PROMPT_SUFFIX = dedent(
     - Header or footer lines can stick together; remember to separate them.
     """
 )
-
+def run_marker(input_pth: Path, output_pth: Path):
+    marker_args = [
+        "convert_single",
+        str(input_pth),
+        "--output_dir", str(output_pth),
+        "--output_format", "html",
+        "--use_llm",
+        "--force_layout_block", "Table",
+        "--converter_cls", "marker.converters.table.TableConverter",
+        "--llm_service", "marker.services.gemini.GoogleGeminiService",
+        "--gemini_api_key", "123",
+    ]
+    print("[marker logic loading !]")
+    original_argv = sys.argv
+    try:
+        sys.argv = marker_args
+        convert_single_cli()
+    except SystemExit as e:
+        if e.code != 0:
+            print(f"erro marker: {e.code}")
+    finally:
+        sys.argv = original_argv
 
 def run():
     args = parse_cli_args()
@@ -50,6 +72,11 @@ def run():
 
     for idx, file_path in enumerate(files, 1):
         print(f"[{idx}/{len(files)}] {file_path.name}")
+#marker 
+        if args.marker:
+            run_marker(file_path, args.output_dir)
+            continue
+
         is_pdf = file_path.suffix.lower() == ".pdf"
         is_native_pdf = is_pdf and is_digital_pdf(file_path)
         if is_pdf:

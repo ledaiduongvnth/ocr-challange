@@ -9,39 +9,33 @@ from PIL import Image, ImageDraw
 from components import log_component_bboxes
 
 try:
-    from paddlex import create_model
+    from paddleocr import LayoutDetection
 except Exception:  # pragma: no cover - optional dependency
-    create_model = None
+    LayoutDetection = None
 
 
 def _load_pp_doclayout(model_name: str = "PP-DocLayout-L"):
-    if create_model is None:
+    if LayoutDetection is None:
         raise ImportError(
-            "paddlex is not installed. Install PaddleX 3.0rc1+ to use PP-DocLayout."
+            "paddleocr is not installed. Install paddleocr to use PP-DocLayout."
         )
-    return create_model(model_name)
+    return LayoutDetection(model_name=model_name)
 
 
 def _predict_layout(model, images: Sequence[Image.Image]) -> List:
     results = []
     for img in images:
         np_img = np.array(img.convert("RGB"))
-        preds = model.predict(np_img)
-        # model.predict may yield generator/custom objects; coerce to list of raw dicts
+        preds = model.predict(np_img, layout_nms=True)
+        # model.predict returns custom objects; use .res which includes 'boxes'
         page_entries = []
-        try:
-            iterable_preds = list(preds)
-        except TypeError:
-            iterable_preds = [preds]
-
-        for p in iterable_preds:
-            raw = p.res if hasattr(p, "res") else p
-            if not raw:
-                continue
-            if isinstance(raw, dict) and "boxes" in raw:
-                page_entries.extend(raw["boxes"])
-            elif isinstance(raw, dict):
-                page_entries.append(raw)
+        for p in preds:
+            if hasattr(p, "res"):
+                raw = p.res
+                if isinstance(raw, dict) and "boxes" in raw:
+                    page_entries.extend(raw["boxes"])
+            elif isinstance(p, dict) and "boxes" in p:
+                page_entries.extend(p["boxes"])
         results.append(page_entries)
     return results
 

@@ -52,6 +52,10 @@ def run():
         print(f"[{idx}/{len(files)}] {file_path.name}")
         is_pdf = file_path.suffix.lower() == ".pdf"
         is_native_pdf = is_pdf and is_digital_pdf(file_path)
+        if is_pdf:
+            print(f"  PDF type: {'native' if is_native_pdf else 'scanned'}")
+        else:
+            print("  Input type: image")
 
         layout_images = []
         layout_results = []
@@ -61,13 +65,23 @@ def run():
             print(f"  [layout] loaded {len(layout_images)} page(s)")
             # Run layout analysis using selected backend
             if args.layout_backend == "ppdoclayout":
+                print("  [layout] backend: PP-DocLayout-L")
                 _, layout_results = analyze_layout_pp_doclayout(
                     file_path=file_path,
                     images=layout_images,
                     model_name="PP-DocLayout-L",
                     debug_dir=args.output_dir / "debug_layout",
                 )
+            elif args.layout_backend == "PicoDet_layout_1x_table":
+                print("  [layout] backend: PicoDet_layout_1x_table")
+                _, layout_results = analyze_layout_pp_doclayout(
+                    file_path=file_path,
+                    images=layout_images,
+                    model_name="PicoDet_layout_1x_table",
+                    debug_dir=args.output_dir / "debug_layout",
+                )
             else:
+                print("  [layout] backend: chandra")
                 _, layout_results = chandra_analyze_layout(
                     file_path=file_path,
                     images=layout_images,

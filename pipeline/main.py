@@ -17,6 +17,8 @@ from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
 from chandra_layout_analysis import chandra_analyze_layout
 from pp_doclayout import analyze_layout_pp_doclayout
+from pp_structure_preprocess import preprocess_with_ppstructure
+from pp_structure_postprocess import postprocess_with_ppstructure
 
 
 CUSTOM_PROMPT_SUFFIX = dedent(
@@ -66,6 +68,14 @@ def run():
             debug_layout_dir = args.output_dir / "debug_layout" if args.html else None
             debug_native_dir = args.output_dir / "debug_native" if args.html else None
             debug_ocr_dir = args.output_dir / "debug_ocr_components" if args.html else None
+            if args.preprocess_backend == "ppstructure":
+                print("  [preprocess] backend: ppstructure (orientation/unwarp)")
+                layout_images = preprocess_with_ppstructure(
+                    layout_images,
+                    use_orientation=True,
+                    use_unwarp=True,
+                    debug_dir=debug_layout_dir,
+                )
 
             # Run layout analysis using selected backend
             if args.layout_backend == "ppdoclayout":
@@ -93,6 +103,10 @@ def run():
                     prompt=None,
                     batch_size=batch_size,
                     debug_dir=debug_layout_dir,
+                )
+            if args.postprocess_backend == "ppstructure":
+                layout_results = postprocess_with_ppstructure(
+                    layout_results, images=layout_images
                 )
         except Exception as exc:  # pragma: no cover - defensive
             print(f"Layout analysis failed ({exc}); continuing without layout hints.")

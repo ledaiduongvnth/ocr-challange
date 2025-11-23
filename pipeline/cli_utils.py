@@ -9,7 +9,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/home/zsv/Desktop/native.pdf"),
+        default=Path("/home/zsv/Desktop/scan.pdf"),
         help="File or directory containing PDFs/images. Defaults to /home/zsv/Desktop/test-native.pdf if omitted.",
     )
     parser.add_argument(
@@ -88,6 +88,18 @@ def parse_cli_args() -> argparse.Namespace:
         choices=("chandra", "ppdoclayout", "PicoDet_layout_1x_table"),
         default="ppdoclayout",
         help="Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), or 'PicoDet_layout_1x_table'.",
+    )
+    parser.add_argument(
+        "--preprocess-backend",
+        choices=("none", "ppstructure"),
+        default="ppstructure",
+        help="Optional preprocessing before layout/OCR: 'ppstructure' uses PP-StructureV3 doc_preprocessor.",
+    )
+    parser.add_argument(
+        "--postprocess-backend",
+        choices=("none", "ppstructure"),
+        default="ppstructure",
+        help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
     )
     return parser.parse_args()
 

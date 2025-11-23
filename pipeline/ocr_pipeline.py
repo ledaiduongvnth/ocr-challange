@@ -5,6 +5,42 @@ from typing import List, Callable
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Extracted PDF Table</title>
+  <style>
+    body {{
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+      background: #f5f5f5;
+    }}
+    table.pdf-table {{
+      border-collapse: collapse;
+      min-width: 60%;
+      margin: 0 auto;
+      background: #fff;
+    }}
+    table.pdf-table td {{
+      border: 1px solid #999;
+      padding: 4px 6px;
+      vertical-align: top;
+      white-space: pre-wrap;
+    }}
+    table.pdf-table td.empty {{
+      background: #fafafa;
+    }}
+  </style>
+</head>
+<body>
+  <table class="pdf-table">
+{table_rows}
+  </table>
+</body>
+</html>
+"""
+
 def run_ocr_pipeline(
     file_path: Path,
     args,
@@ -79,6 +115,13 @@ def run_ocr_pipeline(
         batch_kwargs = dict(generate_kwargs)
         results = inference.generate(component_items[start:end], **batch_kwargs)
         for res in results or []:
+            if res.html:
+                rows_html = res.html
+                if "<table" in rows_html:
+                    rows_html = rows_html.replace("<table", '<table class="pdf-table"', 1)
+                else:
+                    rows_html = f'<table class="pdf-table">{rows_html}</table>'
+                res.html = HTML_TEMPLATE.format(table_rows=rows_html)
             outputs.append(res)
 
     return outputs

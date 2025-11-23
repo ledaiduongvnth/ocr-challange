@@ -84,9 +84,9 @@ def parse_cli_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--layout-backend",
-        choices=("chandra", "ppdoclayout"),
-        default="ppdoclayout",
-        help="Layout analysis backend: 'chandra' (default) or 'ppdoclayout' (PaddleX PP-DocLayout).",
+        choices=("chandra", "ppdoclayout", "PicoDet_layout_1x_table"),
+        default="PicoDet_layout_1x_table",
+        help="Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), or 'PicoDet_layout_1x_table'.",
     )
     return parser.parse_args()
 

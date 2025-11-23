@@ -9,7 +9,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/home/zsv/Desktop/scan.pdf"),
+        default=Path("/home/zsv/Desktop/native.pdf"),
         help="File or directory containing PDFs/images. Defaults to /home/zsv/Desktop/test-native.pdf if omitted.",
     )
     parser.add_argument(
@@ -61,7 +61,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-images",
         action="store_true",
-        default=False,
+        default=True,
         help="Store cropped images referenced in output markdown.",
     )
     parser.add_argument(
@@ -70,10 +70,11 @@ def parse_cli_args() -> argparse.Namespace:
         default=False,
         help="Keep detected headers/footers in the output.",
     )
-    parser.add_argument("--no-html", action="store_true", help="Skip writing HTML alongside markdown.")
+    parser.add_argument("--html", default=True, action="store_true", help="Skip writing HTML alongside markdown.")
     parser.add_argument(
         "--paginate-output",
         action="store_true",
+        default=False,
         help="Insert page separators into markdown/html.",
     )
     parser.add_argument("--device", default=None, help="Optional torch device override, e.g. 'cuda:0'.")

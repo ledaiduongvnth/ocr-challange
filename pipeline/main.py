@@ -63,6 +63,10 @@ def run():
             load_config = {"page_range": args.page_range} if args.page_range else {}
             layout_images = load_file(str(file_path), load_config)
             print(f"  [layout] loaded {len(layout_images)} page(s)")
+            debug_layout_dir = args.output_dir / "debug_layout" if args.html else None
+            debug_native_dir = args.output_dir / "debug_native" if args.html else None
+            debug_ocr_dir = args.output_dir / "debug_ocr_components" if args.html else None
+
             # Run layout analysis using selected backend
             if args.layout_backend == "ppdoclayout":
                 print("  [layout] backend: PP-DocLayout-L")
@@ -70,7 +74,7 @@ def run():
                     file_path=file_path,
                     images=layout_images,
                     model_name="PP-DocLayout-L",
-                    debug_dir=args.output_dir / "debug_layout",
+                    debug_dir=debug_layout_dir,
                 )
             elif args.layout_backend == "PicoDet_layout_1x_table":
                 print("  [layout] backend: PicoDet_layout_1x_table")
@@ -78,7 +82,7 @@ def run():
                     file_path=file_path,
                     images=layout_images,
                     model_name="PicoDet_layout_1x_table",
-                    debug_dir=args.output_dir / "debug_layout",
+                    debug_dir=debug_layout_dir,
                 )
             else:
                 print("  [layout] backend: chandra")
@@ -88,7 +92,7 @@ def run():
                     infer_fn=lambda items: inference.generate(items, **generate_kwargs),
                     prompt=None,
                     batch_size=batch_size,
-                    debug_dir=args.output_dir / "debug_layout",
+                    debug_dir=debug_layout_dir,
                 )
         except Exception as exc:  # pragma: no cover - defensive
             print(f"Layout analysis failed ({exc}); continuing without layout hints.")
@@ -100,7 +104,7 @@ def run():
                     file_path,
                     layout_results=layout_results,
                     layout_images=layout_images,
-                    debug_dir=args.output_dir / "debug_native",
+                    debug_dir=debug_native_dir,
                 )
             case _:
                 results = run_ocr_pipeline(
@@ -114,16 +118,16 @@ def run():
                     batch_input_cls=BatchInputItem,
                     images=layout_images,
                     layout_results=layout_results,
-                    debug_dir=args.output_dir / "debug_ocr_components",
+                    debug_dir=debug_ocr_dir,
                 )
 
         save_merged_output(
             args.output_dir,
             file_path.name,
             results,
-            save_images=True,
-            save_html=True,
-            paginate_output=False,
+            save_images=args.include_images,
+            save_html=args.html,
+            paginate_output=args.paginate_output,
         )
 
 

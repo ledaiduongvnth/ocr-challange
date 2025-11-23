@@ -10,11 +10,11 @@ from components import log_component_bboxes
 from orientation import normalize_page_images
 
 
-def analyze_layout(
+def chandra_analyze_layout(
     file_path: Path,
     images: Sequence[Image.Image],
     infer_fn: Callable[[Sequence[BatchInputItem]], Sequence],
-    prompt: str,
+    prompt: str | None,
     batch_size: int,
     debug_dir: Path | None = None,
 ) -> Tuple[List[Image.Image], List]:
@@ -32,8 +32,13 @@ def analyze_layout(
     Outputs:
         (images, layout_results) where layout_results mirrors the input pages and contains chunk bboxes.
     """
+    if prompt is None:
+        from chandra.prompts import PROMPT_MAPPING
+
+        prompt = PROMPT_MAPPING["ocr_layout"]
     print(f"  [layout] -> {len(images)} page(s)")
     layout_results: List = []
+    assert images, "layout analysis requires at least one page image"
     for start in range(0, len(images), batch_size):
         end = min(start + batch_size, len(images))
         print(f"     [layout] batching pages {start + 1}-{end}")
@@ -48,6 +53,7 @@ def analyze_layout(
         results = infer_fn(batch_items)
         layout_results.extend(results)
 
+    assert len(layout_results) == len(images), "layout results must match number of pages"
     log_component_bboxes(file_path.name, layout_results)
 
     if debug_dir:

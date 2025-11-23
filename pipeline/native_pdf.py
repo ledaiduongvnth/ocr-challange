@@ -161,6 +161,9 @@ def build_native_outputs(
     """Extract table/text for native PDFs and return as BatchOutputItem list."""
     try:
         if layout_results:
+            assert layout_images is not None and len(layout_images) == len(
+                layout_results
+            ), "layout_images must align with layout_results for native extraction"
             outputs: list[BatchOutputItem] = []
             if debug_dir:
                 debug_dir.mkdir(parents=True, exist_ok=True)
@@ -190,7 +193,7 @@ def build_native_outputs(
                             y0 *= scale_y
                             y1 *= scale_y
                         # Pad and clamp to page bounds to avoid pdfplumber errors.
-                        pad = 4 if label in {"table", "form"} else 2
+                        pad = 5 if label in {"table", "form"} else 3
                         x0 = max(0, min(x0 - pad, page_width))
                         y0 = max(0, min(y0 - pad, page_height))
                         x1 = max(x0 + 1e-3, min(x1 + pad, page_width))
@@ -212,7 +215,12 @@ def build_native_outputs(
                             try:
                                 table_cells = []
                                 tables = cropped_page.find_tables()
-                                print(f"    tables found: {len(tables)}, first_has_cells={bool(tables and getattr(tables[0], 'cells', None))}")
+                                cell_counts = [
+                                    len(getattr(tbl, "cells", []) or []) for tbl in tables
+                                ]
+                                print(
+                                    f"    tables found: {len(tables)}, cell_counts={cell_counts}"
+                                )
                                 for tbl in tables:
                                     for cell_bbox in getattr(tbl, "cells", []) or []:
                                         if isinstance(cell_bbox, dict):
@@ -233,15 +241,8 @@ def build_native_outputs(
                                             )
                                         if None in box:
                                             continue
-                                        # cell_bbox is relative to cropped_page; shift back to full page for extraction.
-                                        abs_box = (
-                                            box[0] + x0,
-                                            box[1] + y0,
-                                            box[2] + x0,
-                                            box[3] + y0,
-                                        )
                                         cell_text = (
-                                            page.within_bbox(abs_box).extract_text() or ""
+                                            page.within_bbox(box).extract_text() or ""
                                         ).strip()
                                         table_cells.append(
                                             {
@@ -253,6 +254,7 @@ def build_native_outputs(
                                             }
                                         )
                                 if table_cells:
+                                    print(f"    table_cells: {len(table_cells)}")
                                     text = render_native_cells_as_html(table_cells)
                             except Exception:
                                 pass

@@ -5,7 +5,13 @@ from pathlib import Path
 
 def parse_cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Chandra OCR runner with orientation detection.")
-    parser.add_argument("input_path", type=Path, help="File or directory containing PDFs/images.")
+    parser.add_argument(
+        "input_path",
+        type=Path,
+        nargs="?",
+        default=Path("/home/zsv/Desktop/test-native.pdf"),
+        help="File or directory containing PDFs/images. Defaults to /home/zsv/Desktop/test-native.pdf if omitted.",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -53,12 +59,6 @@ def parse_cli_args() -> argparse.Namespace:
         help="Retry count for vllm backend.",
     )
     parser.add_argument(
-        "--vllm-timeout",
-        type=float,
-        default=1000,
-        help="Request timeout (seconds) for vLLM backend.",
-    )
-    parser.add_argument(
         "--include-images",
         action="store_true",
         default=False,
@@ -81,6 +81,12 @@ def parse_cli_args() -> argparse.Namespace:
         "--attn-impl",
         default=None,
         help="Optional attention implementation (flash_attention_2, etc.).",
+    )
+    parser.add_argument(
+        "--layout-backend",
+        choices=("chandra", "ppdoclayout"),
+        default="ppdoclayout",
+        help="Layout analysis backend: 'chandra' (default) or 'ppdoclayout' (PaddleX PP-DocLayout).",
     )
     return parser.parse_args()
 

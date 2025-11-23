@@ -10,13 +10,17 @@ def run_ocr_pipeline(
     args,
     inference,
     generate_kwargs: dict,
-    base_prompt: str,
+    base_prompt: str | None,
     batch_size: int,
     loader: Callable,
     batch_input_cls=BatchInputItem,
     images: List | None = None,
     layout_results: List | None = None,
     ) -> List:
+    if base_prompt is None:
+        from chandra.prompts import PROMPT_MAPPING
+
+        base_prompt = PROMPT_MAPPING["ocr"]
     if images is None:
         config = {"page_range": args.page_range} if args.page_range else {}
         images = loader(str(file_path), config)
@@ -27,7 +31,7 @@ def run_ocr_pipeline(
     all_results = []
     assert layout_results is not None and len(layout_results) == len(
         images
-    ), "layout_results must be provided and match number of pages"
+    ), "layout_results (from chandra_layout_analysis/pp_doclayout/native_pdf) must be provided and match number of pages"
 
     # Recognize each detected component individually using cropped regions.
     component_items = []

@@ -19,6 +19,7 @@ from chandra_layout_analysis import chandra_analyze_layout
 from pp_doclayout import analyze_layout_pp_doclayout
 from pp_structure_preprocess import preprocess_with_ppstructure
 from pp_structure_postprocess import postprocess_with_ppstructure
+from utils import filter_image_chunks
 
 
 CUSTOM_PROMPT_SUFFIX = dedent(
@@ -116,6 +117,7 @@ def run():
                 layout_results = postprocess_with_ppstructure(
                     layout_results, images=layout_images
                 )
+            layout_results = filter_image_chunks(layout_results)
         except Exception as exc:  # pragma: no cover - defensive
             print(f"Layout analysis failed ({exc}); continuing without layout hints.")
 

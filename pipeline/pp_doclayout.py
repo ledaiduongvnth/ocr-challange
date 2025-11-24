@@ -6,7 +6,7 @@ from typing import List, Sequence, Tuple
 import numpy as np
 from PIL import Image, ImageDraw
 
-from components import log_component_bboxes
+from utils import log_component_bboxes
 
 try:
     from paddleocr import LayoutDetection

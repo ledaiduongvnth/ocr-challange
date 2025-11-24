@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Sequence
 
 
 def log_component_bboxes(file_name: str, results: List) -> None:
@@ -19,3 +19,23 @@ def log_component_bboxes(file_name: str, results: List) -> None:
             )
             bbox = chunk.get("bbox") or chunk.get("box") or chunk.get("page_box")
             print(f"    page {page_idx} #{comp_idx}: {comp_type} bbox={bbox}")
+
+
+def filter_image_chunks(layout_results: List, images: Sequence | None = None):
+    """Remove layout chunks whose label contains 'image' (case-insensitive)."""
+    if not layout_results:
+        return layout_results
+    filtered = []
+    for res in layout_results:
+        chunks = getattr(res, "chunks", None)
+        if chunks is None:
+            filtered.append(res)
+            continue
+        keep = [
+            c
+            for c in chunks
+            if "image" not in str(c.get("label", "")).lower()
+        ]
+        res.chunks = keep
+        filtered.append(res)
+    return filtered

@@ -6,8 +6,8 @@ from typing import Callable, List, Sequence, Tuple
 from chandra.model.schema import BatchInputItem
 from PIL import Image, ImageDraw
 
-from components import log_component_bboxes
 from orientation import normalize_page_images
+from utils import log_component_bboxes
 
 
 def chandra_analyze_layout(

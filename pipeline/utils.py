@@ -44,8 +44,8 @@ def log_component_bboxes(file_name: str, results: List) -> None:
             print(f"    page {page_idx} #{comp_idx}: {comp_type} bbox={bbox}")
 
 
-def filter_image_chunks(layout_results: List, images: Sequence | None = None):
-    """Remove layout chunks whose label contains 'image' (case-insensitive)."""
+def filter_non_text_chunks(layout_results: List, images: Sequence | None = None):
+    """Remove layout chunks whose label contains 'image', 'page', or 'figure' (case-insensitive)."""
     if not layout_results:
         return layout_results
     filtered = []
@@ -57,7 +57,10 @@ def filter_image_chunks(layout_results: List, images: Sequence | None = None):
         keep = [
             c
             for c in chunks
-            if "image" not in str(c.get("label", "")).lower()
+            if all(
+                banned not in str(c.get("label", "")).lower()
+                for banned in ("image", "page", "figure")
+            )
         ]
         res.chunks = keep
         filtered.append(res)

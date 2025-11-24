@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Callable
+from typing import Callable, List
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 from utils import HTML_TEMPLATE
+
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -18,13 +19,15 @@ def run_ocr_pipeline(
     images: List | None = None,
     layout_results: List | None = None,
     debug_dir: Path | None = None,
-    ) -> List[BatchOutputItem]:
-    if base_prompt == "default":    
+) -> List[BatchOutputItem]:
+    prompt_source = None
+    if base_prompt == "default":
         from chandra.prompts import PROMPT_MAPPING
-        base_prompt = PROMPT_MAPPING["ocr_layout"]
+        prompt_source = PROMPT_MAPPING
     else:
         from chandra_prompts import PROMPT_MAPPING
-        base_prompt = PROMPT_MAPPING["ocr_layout"]
+        prompt_source = PROMPT_MAPPING
+    base_prompt = prompt_source["ocr_layout"]
     if images is None:
         config = {"page_range": args.page_range} if args.page_range else {}
         images = loader(str(file_path), config)
@@ -32,18 +35,32 @@ def run_ocr_pipeline(
     else:
         print(f"  -> using preloaded images ({len(images)} page(s))")
 
-    outputs: List[BatchOutputItem] = []
-    assert layout_results is not None and len(layout_results) == len(
-        images
-    ), "layout_results (from chandra_layout_analysis/pp_doclayout/native_pdf) must be provided and match number of pages"
+    assert layout_results is not None and len(layout_results) == len(images), (
+        "layout_results (from chandra_layout_analysis/pp_doclayout/native_pdf) must be provided "
+        "and match number of pages"
+    )
+
+    if debug_dir:
+        print("Before OCR refinement:")
+        for dbg_idx, dbg_layout in enumerate(layout_results, 1):
+            dbg_chunks = getattr(dbg_layout, "chunks", None) or []
+            print(f"  page {dbg_idx} (idx={dbg_idx-1}) -> {len(dbg_chunks)} chunks")
+            for dbg_cidx, dbg_chunk in enumerate(dbg_chunks, 1):
+                dbg_content = (
+                    dbg_chunk.get("content")
+                    or dbg_chunk.get("text")
+                    or dbg_chunk.get("markdown")
+                    or ""
+                )
+                print(f"    chunk {dbg_cidx}: {dbg_content}")
 
     # Recognize each detected component individually using cropped regions.
-    component_items = []
-    component_pages: list[int] = []
+    component_items: list = []
+    component_index_map: list[tuple[int, int]] = []
     for page_idx, layout in enumerate(layout_results, 0):
         chunks = getattr(layout, "chunks", None) or []
         page_image = images[page_idx]
-        for chunk in chunks:
+        for chunk_idx, chunk in enumerate(chunks):
             bbox = chunk.get("bbox")
             if not bbox or len(bbox) < 4:
                 continue
@@ -55,7 +72,6 @@ def run_ocr_pipeline(
             x1, y1 = int(x1), int(y1)
             label = (chunk.get("label") or chunk.get("type") or "").lower()
             pad = 5 if label in {"table"} else 3
-            # Clamp bounds
             x0 = max(0, min(x0 - pad, page_image.width))
             y0 = max(0, min(y0 - pad, page_image.height))
             x1 = max(x0 + 1, min(x1 + pad, page_image.width))
@@ -76,49 +92,65 @@ def run_ocr_pipeline(
                     prompt=base_prompt,
                 )
             )
-            component_pages.append(page_idx)
+            component_index_map.append((page_idx, chunk_idx))
 
     print(f"     batching {len(component_items)} detected components for OCR")
-    page_outputs: dict[int, BatchOutputItem] = {}
     for start in range(0, len(component_items), batch_size):
         end = min(start + batch_size, len(component_items))
         batch_kwargs = dict(generate_kwargs)
         results = inference.generate(component_items[start:end], **batch_kwargs)
         for offset, res in enumerate(results or []):
             comp_idx = start + offset
-            page_idx = component_pages[comp_idx] if comp_idx < len(component_pages) else 0
-            if res.html:
-                rows_html = res.html
-                if "<table" in rows_html:
-                    rows_html = rows_html.replace("<table", '<table class="pdf-table"', 1)
-                else:
-                    rows_html = f'<table class="pdf-table">{rows_html}</table>'
-                res.html = HTML_TEMPLATE.format(table_rows=rows_html)
-            if page_idx not in page_outputs:
-                page_outputs[page_idx] = res
-                continue
-            # Merge component text into the existing page result
-            existing = page_outputs[page_idx]
-            if hasattr(existing, "markdown"):
-                existing.markdown = (
-                    (existing.markdown or "").rstrip()
-                    + "\n\n"
-                    + (res.markdown or "")
-                ).strip()
-            if hasattr(existing, "html"):
-                html_parts = [existing.html or ""]
-                if res.html:
-                    html_parts.append(res.html)
-                existing.html = "\n\n<!-- component break -->\n\n".join(
-                    [part for part in html_parts if part]
-                )
-            if hasattr(existing, "raw"):
-                existing.raw = (
-                    (existing.raw or "").rstrip()
-                    + "\n\n"
-                    + (getattr(res, "raw", "") or "")
-                ).strip()
-    # Return page-ordered outputs
-    outputs = [page_outputs[idx] for idx in sorted(page_outputs)]
+            if comp_idx < len(component_index_map):
+                chunk_page_idx, chunk_idx = component_index_map[comp_idx]
+                if chunk_page_idx < len(layout_results):
+                    target_layout = layout_results[chunk_page_idx]
+                    target_chunks = getattr(target_layout, "chunks", None) or []
+                    if chunk_idx < len(target_chunks):
+                        target_chunk = target_chunks[chunk_idx]
+                        content_value = res.markdown or getattr(res, "raw", "") or ""
+                        if res.html and ("<table" in res.html or "</table>" in res.html):
+                            rendered = HTML_TEMPLATE.format(table_rows=res.html)
+                            target_chunk["content"] = rendered
+                        else:
+                            target_chunk["content"] = content_value
 
-    return outputs
+    updated_pages: list[BatchOutputItem] = []
+    for layout in layout_results:
+        chunks = getattr(layout, "chunks", None) or []
+        lines = []
+        html_blocks = []
+        for chunk in chunks:
+            content = (
+                chunk.get("content")
+                or chunk.get("text")
+                or chunk.get("markdown")
+                or ""
+            )
+            if content:
+                lines.append(str(content))
+                if "<table" in content or "<p" in content or "<html" in content:
+                    html_blocks.append(content)
+                else:
+                    html_blocks.append(f"<p>{content}</p>")
+        layout.markdown = "\n\n".join(lines) if lines else ""
+        layout.html = (
+            f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""
+        )
+        updated_pages.append(layout)
+
+    if debug_dir:
+        print("After OCR refinement:")
+        for dbg_idx, dbg_layout in enumerate(updated_pages, 1):
+            dbg_chunks = getattr(dbg_layout, "chunks", None) or []
+            print(f"  page {dbg_idx} (idx={dbg_idx-1}) -> {len(dbg_chunks)} chunks")
+            for dbg_cidx, dbg_chunk in enumerate(dbg_chunks, 1):
+                dbg_content = (
+                    dbg_chunk.get("content")
+                    or dbg_chunk.get("text")
+                    or dbg_chunk.get("markdown")
+                    or ""
+                )
+                print(f"    chunk {dbg_cidx}: {dbg_content}")
+
+    return updated_pages

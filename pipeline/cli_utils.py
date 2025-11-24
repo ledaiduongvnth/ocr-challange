@@ -11,7 +11,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("../demo-data/scan.pdf"),
+        default=Path("/media/hdd01/PycharmProjects/ocr-challange/demo-data/scan.pdf"),
         help=(
             "File or directory containing PDFs/images."
         ),
@@ -104,7 +104,7 @@ def parse_cli_args() -> argparse.Namespace:
             "ppdoclayout_plus",
             "PicoDet_layout_1x_table",
         ),
-        default="ppdoclayout",
+        default="chandra",
         help=(
             "Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), "
             "'ppdoclayout_plus' (PP-DocLayout_plus-L), or 'PicoDet_layout_1x_table'."
@@ -119,7 +119,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--postprocess-backend",
         choices=("none", "ppstructure"),
-        default="ppstructure",
+        default=None,
         help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
     )
     parser.add_argument(

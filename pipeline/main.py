@@ -86,6 +86,14 @@ def run():
                     model_name="PP-DocLayout-L",
                     debug_dir=debug_layout_dir,
                 )
+            elif args.layout_backend == "ppdoclayout_plus":
+                print("  [layout] backend: PP-DocLayout_plus-L")
+                _, layout_results = analyze_layout_pp_doclayout(
+                    file_path=file_path,
+                    images=layout_images,
+                    model_name="PP-DocLayout_plus-L",
+                    debug_dir=debug_layout_dir,
+                )
             elif args.layout_backend == "PicoDet_layout_1x_table":
                 print("  [layout] backend: PicoDet_layout_1x_table")
                 _, layout_results = analyze_layout_pp_doclayout(

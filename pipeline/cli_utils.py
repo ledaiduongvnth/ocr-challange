@@ -4,13 +4,17 @@ from pathlib import Path
 
 
 def parse_cli_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Chandra OCR runner with orientation detection.")
+    parser = argparse.ArgumentParser(
+        description="Chandra OCR runner with orientation detection."
+    )
     parser.add_argument(
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/home/zsv/Desktop/scan.pdf"),
-        help="File or directory containing PDFs/images. Defaults to /home/zsv/Desktop/test-native.pdf if omitted.",
+        default=Path("../demo-data/scan.pdf"),
+        help=(
+            "File or directory containing PDFs/images."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -61,7 +65,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-images",
         action="store_true",
-        default=False,
+        default=True,
         help="Store cropped images referenced in output markdown.",
     )
     parser.add_argument(
@@ -70,13 +74,23 @@ def parse_cli_args() -> argparse.Namespace:
         default=False,
         help="Keep detected headers/footers in the output.",
     )
-    parser.add_argument("--no-html", action="store_true", help="Skip writing HTML alongside markdown.")
+    parser.add_argument(
+        "--html",
+        default=True,
+        action="store_true",
+        help="Skip writing HTML alongside markdown.",
+    )
     parser.add_argument(
         "--paginate-output",
         action="store_true",
+        default=False,
         help="Insert page separators into markdown/html.",
     )
-    parser.add_argument("--device", default=None, help="Optional torch device override, e.g. 'cuda:0'.")
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Optional torch device override, e.g. 'cuda:0'.",
+    )
     parser.add_argument(
         "--attn-impl",
         default=None,
@@ -84,9 +98,29 @@ def parse_cli_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--layout-backend",
-        choices=("chandra", "ppdoclayout", "PicoDet_layout_1x_table"),
+        choices=(
+            "chandra",
+            "ppdoclayout",
+            "ppdoclayout_plus",
+            "PicoDet_layout_1x_table",
+        ),
         default="ppdoclayout",
-        help="Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), or 'PicoDet_layout_1x_table'.",
+        help=(
+            "Layout analysis backend: 'chandra', 'ppdoclayout' (PP-DocLayout-L), "
+            "'ppdoclayout_plus' (PP-DocLayout_plus-L), or 'PicoDet_layout_1x_table'."
+        ),
+    )
+    parser.add_argument(
+        "--preprocess-backend",
+        choices=("none", "ppstructure"),
+        default="ppstructure",
+        help="Optional preprocessing before layout/OCR: 'ppstructure' uses PP-StructureV3 doc_preprocessor.",
+    )
+    parser.add_argument(
+        "--postprocess-backend",
+        choices=("none", "ppstructure"),
+        default="ppstructure",
+        help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
     )
     return parser.parse_args()
 

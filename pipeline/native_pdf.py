@@ -152,6 +152,60 @@ def render_native_cells_as_html(cells: list[dict[str, float | int | str | None]]
         rows_html.append("  <tr>\n" + "\n".join(cells_html) + "\n  </tr>")
 
     return render_table_html("\n".join(rows_html))
+
+
+def render_native_cells_as_markdown(cells: list[dict[str, float | int | str | None]]) -> str:
+    """Return a markdown-compatible HTML table (kept minimal for Markdown)."""
+    rows_html: list[str] = []
+    x_values: list[float] = []
+    y_values: list[float] = []
+    for cell in cells:
+        x_values.extend([float(cell["x0"]), float(cell["x1"])])
+        y_values.extend([float(cell["top"]), float(cell["bottom"])])
+
+    x_lines = _unique_sorted(x_values)
+    y_lines = _unique_sorted(y_values)
+    col_count = max(1, len(x_lines) - 1)
+    row_count = max(1, len(y_lines) - 1)
+
+    anchors: dict[tuple[int, int], dict[str, Any]] = {}
+    skip_positions: set[tuple[int, int]] = set()
+
+    for cell in cells:
+        row_start = _find_index(float(cell["top"]), y_lines)
+        row_end = _find_index(float(cell["bottom"]), y_lines)
+        col_start = _find_index(float(cell["x0"]), x_lines)
+        col_end = _find_index(float(cell["x1"]), x_lines)
+        anchor_key = (row_start, col_start)
+        anchors[anchor_key] = {
+            "row_span": max(1, row_end - row_start),
+            "col_span": max(1, col_end - col_start),
+            "text": cell.get("text") or "",
+        }
+        for r in range(row_start, row_start + anchors[anchor_key]["row_span"]):
+            for c in range(col_start, col_start + anchors[anchor_key]["col_span"]):
+                if (r, c) == anchor_key:
+                    continue
+                skip_positions.add((r, c))
+
+    for row in range(row_count):
+        cells_html: list[str] = []
+        for col in range(col_count):
+            key = (row, col)
+            if key in anchors:
+                entry = anchors[key]
+                rowspan_attr = f' rowspan="{entry["row_span"]}"' if entry["row_span"] > 1 else ""
+                colspan_attr = f' colspan="{entry["col_span"]}"' if entry["col_span"] > 1 else ""
+                cell_text = html.escape(str(entry["text"])) if entry["text"] else "&nbsp;"
+                cells_html.append(f"    <td{rowspan_attr}{colspan_attr}>{cell_text}</td>")
+            elif key in skip_positions:
+                continue
+            else:
+                cells_html.append("    <td>&nbsp;</td>")
+        rows_html.append("  <tr>\n" + "\n".join(cells_html) + "\n  </tr>")
+
+    return "<table>\n" + "\n".join(rows_html) + "\n</table>"
+
 def build_native_outputs(
     file_path: Path,
     layout_results: list | None = None,
@@ -210,6 +264,8 @@ def build_native_outputs(
                             except Exception:
                                 pass
                         text = (cropped_page.extract_text() or "").strip()
+                        markdown_text = text
+                        html_text = text
                         # If this chunk appears to be a table, try table cell extraction within the crop.
                         if label == "table":
                             try:
@@ -255,15 +311,16 @@ def build_native_outputs(
                                         )
                                 if table_cells:
                                     print(f"    table_cells: {len(table_cells)}")
-                                    text = render_native_cells_as_html(table_cells)
+                                    html_text = render_native_cells_as_html(table_cells)
+                                    markdown_text = render_native_cells_as_markdown(table_cells)
                             except Exception:
                                 pass
                         outputs.append(
                             BatchOutputItem(
-                                markdown=text,
-                                html=text,
+                                markdown=markdown_text,
+                                html=html_text,
                                 chunks={},
-                                raw=text,
+                                raw=markdown_text,
                                 page_box=[x0, y0, x1, y1],
                                 token_count=0,
                                 images={},

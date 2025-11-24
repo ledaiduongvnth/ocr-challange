@@ -139,7 +139,7 @@ def run():
                     args=args,
                     inference=inference,
                     generate_kwargs=generate_kwargs,
-                    base_prompt=None,
+                    base_prompt=args.prompt,
                     batch_size=batch_size,
                     loader=load_file,
                     batch_input_cls=BatchInputItem,

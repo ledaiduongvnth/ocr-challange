@@ -4,42 +4,7 @@ from pathlib import Path
 from typing import List, Callable
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
-
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Extracted PDF Table</title>
-  <style>
-    body {{
-      font-family: Arial, sans-serif;
-      padding: 1rem;
-      background: #f5f5f5;
-    }}
-    table.pdf-table {{
-      border-collapse: collapse;
-      min-width: 60%;
-      margin: 0 auto;
-      background: #fff;
-    }}
-    table.pdf-table td {{
-      border: 1px solid #999;
-      padding: 4px 6px;
-      vertical-align: top;
-      white-space: pre-wrap;
-    }}
-    table.pdf-table td.empty {{
-      background: #fafafa;
-    }}
-  </style>
-</head>
-<body>
-  <table class="pdf-table">
-{table_rows}
-  </table>
-</body>
-</html>
-"""
+from utils import HTML_TEMPLATE
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -54,10 +19,11 @@ def run_ocr_pipeline(
     layout_results: List | None = None,
     debug_dir: Path | None = None,
     ) -> List[BatchOutputItem]:
-    if base_prompt is None:
-        # from chandra.prompts import PROMPT_MAPPING
+    if base_prompt == "default":    
+        from chandra.prompts import PROMPT_MAPPING
+        base_prompt = PROMPT_MAPPING["ocr_layout"]
+    else:
         from chandra_prompts import PROMPT_MAPPING
-
         base_prompt = PROMPT_MAPPING["ocr_layout"]
     if images is None:
         config = {"page_range": args.page_range} if args.page_range else {}

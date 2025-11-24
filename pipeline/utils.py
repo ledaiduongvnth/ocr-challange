@@ -3,6 +3,29 @@ from __future__ import annotations
 from typing import List, Sequence
 
 
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Extracted PDF Table</title>
+  <style>
+    table,
+    th,
+    td {{
+      border: 1px solid black;
+      border-collapse: collapse;
+      padding: 4px;
+    }}
+  </style>
+</head>
+<body>
+  <table class="pdf-table">
+{table_rows}
+  </table>
+</body>
+</html>
+"""
+
 def log_component_bboxes(file_name: str, results: List) -> None:
     """Log component bounding boxes (tables, text blocks, etc.) per page."""
     print(f"  components for {file_name}:")

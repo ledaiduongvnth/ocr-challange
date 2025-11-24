@@ -7,43 +7,9 @@ from typing import Any
 import pdfplumber
 
 from chandra.model.schema import BatchOutputItem
+from utils import HTML_TEMPLATE
 
 COORD_TOLERANCE = 2.0
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Extracted PDF Table</title>
-  <style>
-    body {{
-      font-family: Arial, sans-serif;
-      padding: 1rem;
-      background: #f5f5f5;
-    }}
-    table.pdf-table {{
-      border-collapse: collapse;
-      min-width: 60%;
-      margin: 0 auto;
-      background: #fff;
-    }}
-    table.pdf-table td {{
-      border: 1px solid #999;
-      padding: 4px 6px;
-      vertical-align: top;
-      white-space: pre-wrap;
-    }}
-    table.pdf-table td.empty {{
-      background: #fafafa;
-    }}
-  </style>
-</head>
-<body>
-  <table class="pdf-table">
-{table_rows}
-  </table>
-</body>
-</html>
-"""
 
 
 def render_table_html(rows_html: str) -> str:

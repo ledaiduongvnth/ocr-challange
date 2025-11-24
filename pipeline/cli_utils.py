@@ -11,7 +11,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/home/d/Downloads/file.hoaphat.com.vn__hoaphat-com-vn__2025__04__bao-cao-tai-chinh-rieng-quy-i-2025-22-23.pdf"),
+        default=Path("../demo-data/scan.pdf"),
         help=(
             "File or directory containing PDFs/images."
         ),
@@ -121,6 +121,12 @@ def parse_cli_args() -> argparse.Namespace:
         choices=("none", "ppstructure"),
         default="ppstructure",
         help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
+    )
+    parser.add_argument(
+        "--prompt",
+        choices=("default", "custom"),
+        default="default",
+        help="Prompt type for chandra"
     )
     return parser.parse_args()
 

@@ -95,7 +95,6 @@ def analyze_layout_pp_doclayout(
     log_component_bboxes(file_path.name, layout_results)
 
     if debug_dir:
-        debug_dir.mkdir(parents=True, exist_ok=True)
         for page_idx, (img, layout) in enumerate(zip(images, layout_results), 1):
             annotated = img.convert("RGB")
             draw = ImageDraw.Draw(annotated)
@@ -108,7 +107,9 @@ def analyze_layout_pp_doclayout(
                 draw.rectangle((x0, y0, x1, y1), outline="blue", width=2)
                 label = chunk.get("label") or "unknown"
                 draw.text((x0 + 2, y0 + 2), label, fill="blue")
-            out_path = debug_dir / f"{file_path.stem}_ppdoc_layout_{page_idx:03d}.png"
+            page_dir = debug_dir / f"{page_idx:03d}" / "debug_layout"
+            page_dir.mkdir(parents=True, exist_ok=True)
+            out_path = page_dir / f"{file_path.stem}_ppdoc_layout.png"
             annotated.save(out_path)
             print(f"     [pp-doclayout] saved debug image -> {out_path}")
 

@@ -11,7 +11,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("../demo-data/scan.pdf"),
+        default=Path("/home/d/Downloads/file.hoaphat.com.vn__hoaphat-com-vn__2025__04__bao-cao-tai-chinh-rieng-quy-i-2025-22-23.pdf"),
         help=(
             "File or directory containing PDFs/images."
         ),
@@ -83,7 +83,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--paginate-output",
         action="store_true",
-        default=False,
+        default=True,
         help="Insert page separators into markdown/html.",
     )
     parser.add_argument(

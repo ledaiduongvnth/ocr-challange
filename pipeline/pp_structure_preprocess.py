@@ -70,8 +70,9 @@ def preprocess_with_ppstructure(
 
         if debug_dir:
             try:
-                debug_dir.mkdir(parents=True, exist_ok=True)
-                out_path = debug_dir / f"preprocessed_{idx:03d}.png"
+                page_dir = debug_dir / f"{idx:03d}" / "debug_layout"
+                page_dir.mkdir(parents=True, exist_ok=True)
+                out_path = page_dir / "preprocessed.png"
                 processed.save(out_path)
                 print(f"  [pp-structure] saved preprocessed page -> {out_path}")
             except Exception:

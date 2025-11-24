@@ -73,6 +73,7 @@ def run_ocr_pipeline(
 
     # Recognize each detected component individually using cropped regions.
     component_items = []
+    component_pages: list[int] = []
     for page_idx, layout in enumerate(layout_results, 0):
         chunks = getattr(layout, "chunks", None) or []
         page_image = images[page_idx]
@@ -96,8 +97,9 @@ def run_ocr_pipeline(
             cropped = page_image.crop((x0, y0, x1, y1))
             if debug_dir:
                 try:
-                    debug_dir.mkdir(parents=True, exist_ok=True)
-                    crop_path = debug_dir / f"{file_path.stem}_p{page_idx+1}_comp{len(component_items)+1}.png"
+                    page_dir = debug_dir / f"{page_idx+1:03d}" / "debug_ocr_components"
+                    page_dir.mkdir(parents=True, exist_ok=True)
+                    crop_path = page_dir / f"{file_path.stem}_comp{len(component_items)+1}.png"
                     cropped.save(crop_path)
                 except Exception:
                     pass
@@ -108,13 +110,17 @@ def run_ocr_pipeline(
                     prompt=base_prompt,
                 )
             )
+            component_pages.append(page_idx)
 
     print(f"     batching {len(component_items)} detected components for OCR")
+    page_outputs: dict[int, BatchOutputItem] = {}
     for start in range(0, len(component_items), batch_size):
         end = min(start + batch_size, len(component_items))
         batch_kwargs = dict(generate_kwargs)
         results = inference.generate(component_items[start:end], **batch_kwargs)
-        for res in results or []:
+        for offset, res in enumerate(results or []):
+            comp_idx = start + offset
+            page_idx = component_pages[comp_idx] if comp_idx < len(component_pages) else 0
             if res.html:
                 rows_html = res.html
                 if "<table" in rows_html:
@@ -122,6 +128,31 @@ def run_ocr_pipeline(
                 else:
                     rows_html = f'<table class="pdf-table">{rows_html}</table>'
                 res.html = HTML_TEMPLATE.format(table_rows=rows_html)
-            outputs.append(res)
+            if page_idx not in page_outputs:
+                page_outputs[page_idx] = res
+                continue
+            # Merge component text into the existing page result
+            existing = page_outputs[page_idx]
+            if hasattr(existing, "markdown"):
+                existing.markdown = (
+                    (existing.markdown or "").rstrip()
+                    + "\n\n"
+                    + (res.markdown or "")
+                ).strip()
+            if hasattr(existing, "html"):
+                html_parts = [existing.html or ""]
+                if res.html:
+                    html_parts.append(res.html)
+                existing.html = "\n\n<!-- component break -->\n\n".join(
+                    [part for part in html_parts if part]
+                )
+            if hasattr(existing, "raw"):
+                existing.raw = (
+                    (existing.raw or "").rstrip()
+                    + "\n\n"
+                    + (getattr(res, "raw", "") or "")
+                ).strip()
+    # Return page-ordered outputs
+    outputs = [page_outputs[idx] for idx in sorted(page_outputs)]
 
     return outputs

@@ -219,6 +219,7 @@ def build_native_outputs(
                 layout_results
             ), "layout_images must align with layout_results for native extraction"
             outputs: list[BatchOutputItem] = []
+            page_outputs: dict[int, BatchOutputItem] = {}
             if debug_dir:
                 debug_dir.mkdir(parents=True, exist_ok=True)
             crop_idx = 0
@@ -259,7 +260,13 @@ def build_native_outputs(
                             try:
                                 img = cropped_page.to_image(resolution=200).original
                                 crop_idx += 1
-                                crop_path = debug_dir / f"{file_path.stem}_p{page_idx+1}_crop{crop_idx}.png"
+                                page_dir = (
+                                    debug_dir
+                                    / f"{page_idx+1:03d}"
+                                    / "debug_native_components"
+                                )
+                                page_dir.mkdir(parents=True, exist_ok=True)
+                                crop_path = page_dir / f"{file_path.stem}_comp{crop_idx}.png"
                                 img.save(crop_path)
                             except Exception:
                                 pass
@@ -315,8 +322,8 @@ def build_native_outputs(
                                     markdown_text = render_native_cells_as_markdown(table_cells)
                             except Exception:
                                 pass
-                        outputs.append(
-                            BatchOutputItem(
+                        if page_idx not in page_outputs:
+                            page_outputs[page_idx] = BatchOutputItem(
                                 markdown=markdown_text,
                                 html=html_text,
                                 chunks={},
@@ -326,9 +333,26 @@ def build_native_outputs(
                                 images={},
                                 error=False,
                             )
-                        )
-            if outputs:
-                return outputs
+                        else:
+                            existing = page_outputs[page_idx]
+                            existing.markdown = (
+                                (existing.markdown or "").rstrip()
+                                + "\n\n"
+                                + (markdown_text or "")
+                            ).strip()
+                            existing.html = (
+                                (existing.html or "").rstrip()
+                                + "\n\n<!-- component break -->\n\n"
+                                + (html_text or "")
+                            ).strip()
+                            existing.raw = (
+                                (existing.raw or "").rstrip()
+                                + "\n\n"
+                                + (markdown_text or "")
+                            ).strip()
+                            existing.page_box = [x0, y0, x1, y1]
+            if page_outputs:
+                return [page_outputs[idx] for idx in sorted(page_outputs)]
     except Exception as exc:
         print(f"  Native PDF table extraction failed ({exc}); falling back to OCR.")
         return None

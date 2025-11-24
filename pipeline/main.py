@@ -62,13 +62,16 @@ def run():
 
         layout_images = []
         layout_results = []
+        file_output_root = args.output_dir / file_path.stem
+        results_dir = file_output_root / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
         try:
             load_config = {"page_range": args.page_range} if args.page_range else {}
             layout_images = load_file(str(file_path), load_config)
             print(f"  [layout] loaded {len(layout_images)} page(s)")
-            debug_layout_dir = args.output_dir / "debug_layout" if args.html else None
-            debug_native_dir = args.output_dir / "debug_native" if args.html else None
-            debug_ocr_dir = args.output_dir / "debug_ocr_components" if args.html else None
+            debug_layout_dir = file_output_root if args.html else None
+            debug_ocr_dir = file_output_root if args.html else None
+            debug_native_dir = debug_ocr_dir
             if args.preprocess_backend == "ppstructure":
                 print("  [preprocess] backend: ppstructure (orientation/unwarp)")
                 layout_images = preprocess_with_ppstructure(
@@ -145,14 +148,27 @@ def run():
                     debug_dir=debug_ocr_dir,
                 )
 
-        save_merged_output(
-            args.output_dir,
-            file_path.name,
-            results,
-            save_images=args.include_images,
-            save_html=args.html,
-            paginate_output=args.paginate_output,
-        )
+        if args.paginate_output and results:
+            for page_idx, page_res in enumerate(results, 1):
+                page_dir = file_output_root / f"{page_idx:03d}" / "result"
+                page_dir.mkdir(parents=True, exist_ok=True)
+                save_merged_output(
+                    page_dir,
+                    f"{file_path.stem}_p{page_idx}",
+                    [page_res],
+                    save_images=args.include_images,
+                    save_html=args.html,
+                    paginate_output=False,
+                )
+        else:
+            save_merged_output(
+                results_dir,
+                file_path.name,
+                results,
+                save_images=args.include_images,
+                save_html=args.html,
+                paginate_output=args.paginate_output,
+            )
 
 
 if __name__ == "__main__":

@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Sequence, Tuple
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-from utils import log_component_bboxes
+from utils import filter_non_text_chunks, log_component_bboxes
 
 
 def _load_marker_converter():
@@ -114,7 +114,13 @@ def analyze_layout_surya(
     page_info = getattr(rendered, "page_info", {}) or {}
 
     layout_results = _blocks_to_layouts(blocks, len(images), images, page_info)
+    layout_results = filter_non_text_chunks(layout_results)
+
     if debug_dir:
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 18)
+        except Exception:
+            font = ImageFont.load_default()
         for page_idx, (img, layout) in enumerate(zip(images, layout_results), 1):
             annotated = img.convert("RGB")
             draw = ImageDraw.Draw(annotated)
@@ -125,7 +131,11 @@ def analyze_layout_surya(
                 x0, y0, x1, y1 = bbox[:4]
                 draw.rectangle((x0, y0, x1, y1), outline="green", width=2)
                 label = chunk.get("label") or "unknown"
-                draw.text((x0 + 2, y0 + 2), label, fill="green")
+                block_idx = chunk.get("block_index")
+                text = f"{label}"
+                if block_idx is not None:
+                    text = f"{text}#{block_idx}"
+                draw.text((x0 + 2, y0 + 2), text, fill="red", font=font)
             page_dir = debug_dir / f"{page_idx:03d}" / "debug_layout"
             page_dir.mkdir(parents=True, exist_ok=True)
             out_path = page_dir / f"{file_path.stem}_marker_layout.png"

@@ -57,8 +57,6 @@ Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 Guidelines:
 * Inline math: Surround math with <math>...</math> tags. Math expressions should be rendered in KaTeX-compatible LaTeX. Use display for block math.
 
-* Tables: Use colspan and rowspan attributes to match table structure.
-
 * Formatting: Maintain consistent formatting with the image, including spacing, indentation, list markers, subscripts/superscripts, and special characters.
 
 * Images: Include a description of any images in the alt attribute of an <img> tag. Do not fill out the src property.
@@ -106,31 +104,31 @@ OCR this image to HTML.
 {PROMPT_ENDING}
 """.strip()
 
-# TABLE_ONLY_PROMPT = f"""
-# Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
-# You are given an image that contains only a table (or a single table region already cropped).
-# Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers.
-
-# Requirements:
-# - Output a single <table> with <thead>/<tbody>/<tr>/<th>/<td>. Add <caption> if present.
-# - Derive the canonical column count from the header and keep every row on those column boundaries.
-# - Preserve merged cells with exact colspan/rowspan. Do NOT duplicate text into hidden cells; cover them via spans.
-# - If stacked segments share aligned columns, merge them into one logical <table>.
-# - Keep empty cells as empty <td></td>. Never drop a cell.
-# - Keep numeric columns in their correct numeric columns; do not reorder. Use the header’s vertical guides to keep alignment.
-# - Preserve signs, separators, and units exactly (e.g., parentheses for negatives, thousand separators, %, ₫).
-# - Do not add boilerplate text or headings that are not visible.
-# - Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
-# - Keep the logical structure of the table as shown in the image, no additional or editing is allowed.
-
-# {PROMPT_ENDING}
-# """.strip()
 TABLE_ONLY_PROMPT = f"""
+Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 You are given an image that contains only a table (or a single table region already cropped).
-Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers
+Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers.
+
+Requirements:
+- Output a single <table> with <thead>/<tbody>/<tr>/<th>/<td>. Add <caption> if present.
+- Derive the canonical column count from the header and keep every row on those column boundaries.
+- Preserve merged cells with exact colspan/rowspan. Do NOT duplicate text into hidden cells; cover them via spans.
+- If stacked segments share aligned columns, merge them into one logical <table>.
+- Keep empty cells as empty <td></td>. Never drop a cell.
+- Keep numeric columns in their correct numeric columns; do not reorder. Use the header’s vertical guides to keep alignment.
+- Preserve signs, separators, and units exactly (e.g., parentheses for negatives, thousand separators, %, ₫).
+- Do not add boilerplate text or headings that are not visible.
+- Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
+- Keep the logical structure of the table as shown in the image, no additional or editing is allowed.
 
 {PROMPT_ENDING}
 """.strip()
+# TABLE_ONLY_PROMPT = f"""
+# You are given an image that contains only a table (or a single table region already cropped).
+# Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers
+
+# {PROMPT_ENDING}
+# """.strip()
 
 PROMPT_MAPPING = {
     "ocr_layout": OCR_LAYOUT_PROMPT,

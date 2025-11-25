@@ -43,8 +43,14 @@ def log_component_bboxes(file_name: str, results: List) -> None:
                 or chunk.get("category")
                 or "unknown"
             )
+            block_idx = chunk.get("block_index")
             bbox = chunk.get("bbox") or chunk.get("box") or chunk.get("page_box")
-            print(f"    page {page_idx} #{comp_idx}: {comp_type} bbox={bbox}")
+            if block_idx is not None:
+                print(
+                    f"    page {page_idx} #{comp_idx} (block_idx={block_idx}): {comp_type} bbox={bbox}"
+                )
+            else:
+                print(f"    page {page_idx} #{comp_idx}: {comp_type} bbox={bbox}")
 
 
 def filter_non_text_chunks(layout_results: List, images: Sequence | None = None):

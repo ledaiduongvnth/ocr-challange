@@ -47,7 +47,8 @@ def run_ocr_pipeline(
                     or dbg_chunk.get("markdown")
                     or ""
                 )
-                print(f"    chunk {dbg_cidx}: {dbg_content}")
+                block_idx = dbg_chunk.get("block_index")
+                print(f"    chunk {dbg_cidx} (block_idx={block_idx}): {dbg_content}")
 
     # Recognize each detected component individually using cropped regions.
     component_items: list = []
@@ -57,6 +58,7 @@ def run_ocr_pipeline(
         page_image = images[page_idx]
         for chunk_idx, chunk in enumerate(chunks):
             bbox = chunk.get("bbox")
+            block_idx = chunk.get("block_index")
             if not bbox or len(bbox) < 4:
                 continue
             try:
@@ -76,7 +78,7 @@ def run_ocr_pipeline(
                 try:
                     page_dir = debug_dir / f"{page_idx+1:03d}" / "debug_ocr_components"
                     page_dir.mkdir(parents=True, exist_ok=True)
-                    crop_path = page_dir / f"{file_path.stem}_comp{len(component_items)+1}.png"
+                    crop_path = page_dir / f"{file_path.stem}_comp{block_idx}.png"
                     cropped.save(crop_path)
                 except Exception:
                     pass
@@ -158,6 +160,7 @@ def run_ocr_pipeline(
                     or dbg_chunk.get("markdown")
                     or ""
                 )
-                print(f"    chunk {dbg_cidx}: {dbg_content}")
+                block_idx = dbg_chunk.get("block_index")
+                print(f"    chunk {dbg_cidx} (block_idx={block_idx}): {dbg_content}")
 
     return updated_pages

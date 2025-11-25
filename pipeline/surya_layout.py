@@ -8,68 +8,86 @@ from PIL import Image, ImageDraw
 from utils import log_component_bboxes
 
 
-def _load_surya_predictor():
+def _load_marker_converter():
     try:
-        from surya.foundation import FoundationPredictor
-        from surya.layout import LayoutPredictor
-        from surya.settings import settings
-    except Exception as exc:  # pragma: no cover - optional dependency
+        from marker.config.parser import ConfigParser
+        from marker.models import create_model_dict
+        from marker.logger import configure_logging, get_logger
+    except Exception as exc:
         raise ImportError(
-            "surya is not installed. Install surya to use the surya layout backend."
+            "marker is not available. Ensure marker_chandra-main is present and dependencies are installed."
         ) from exc
-    layout_predictor = LayoutPredictor(
-        FoundationPredictor(checkpoint=settings.LAYOUT_MODEL_CHECKPOINT)
+
+    configure_logging()
+    get_logger()  # initialize logger
+    models = create_model_dict()
+    parser = ConfigParser({"output_format": "chunks"})
+    converter_cls = parser.get_converter_cls()
+    converter = converter_cls(
+        config=parser.generate_config_dict(),
+        artifact_dict=models,
+        processor_list=parser.get_processors(),
+        renderer=parser.get_renderer(),
+        llm_service=parser.get_llm_service(),
     )
-    return layout_predictor
+    return converter
 
 
-def _to_chunks(preds) -> List[dict]:
-    chunks: List[dict] = []
-    # If Surya returns an object with .bboxes, unwrap it
-    if hasattr(preds, "bboxes"):
-        preds = getattr(preds, "bboxes") or []
-    if preds is None:
-        return chunks
-    seq = preds if isinstance(preds, (list, tuple)) else [preds]
-    for pred in seq:
-        bbox = None
-        label = "unknown"
-        score = None
+def _blocks_to_layouts(
+    blocks, num_pages: int, images: Sequence[Image.Image], page_info: dict | None
+) -> List:
+    """Group marker blocks by page into simple LayoutResult-like objects."""
+    layouts: List = [type("LayoutResult", (object,), {"chunks": []})() for _ in range(num_pages)]
 
-        if hasattr(pred, "__dict__"):
-            bbox = (
-                getattr(pred, "bbox", None)
-                or getattr(pred, "box", None)
-                or getattr(pred, "coordinate", None)
-                or getattr(pred, "points", None)
-            )
-            label = (
-                getattr(pred, "label", None)
-                or getattr(pred, "type", None)
-                or getattr(pred, "category", None)
-                or "unknown"
-            )
-            score = getattr(pred, "confidence", None) or getattr(pred, "score", None)
-        elif isinstance(pred, dict):
-            bbox = (
-                pred.get("bbox")
-                or pred.get("box")
-                or pred.get("coordinate")
-                or pred.get("points")
-            )
-            label = pred.get("label") or pred.get("type") or pred.get("category") or "unknown"
-            score = pred.get("score") or pred.get("confidence")
-        elif isinstance(pred, (list, tuple)) and len(pred) >= 4:
-            bbox = pred[:4]
-
-        if not bbox or len(bbox) < 4:
-            continue
-        x0, y0, x1, y1 = map(float, bbox[:4])
-        chunk: dict[str, Any] = {"bbox": [x0, y0, x1, y1], "label": str(label)}
-        if score is not None:
-            chunk["score"] = float(score)
-        chunks.append(chunk)
-    return chunks
+    for blk in blocks or []:
+        raw_id = getattr(blk, "id", "") or ""
+        page_idx = getattr(blk, "page", 0) or 0
+        block_idx = None
+        try:
+            if raw_id.startswith("/page/"):
+                parts = raw_id.split("/")
+                if len(parts) >= 4:
+                    page_idx = int(parts[2])
+                    block_idx = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else None
+        except Exception:
+            page_idx = getattr(blk, "page", 0) or 0
+        if 0 <= page_idx < num_pages:
+            img_width = images[page_idx].width if images else None
+            img_height = images[page_idx].height if images else None
+            page_dims = None
+            if page_info and isinstance(page_info, dict):
+                info = page_info.get(page_idx) or page_info.get(str(page_idx))
+                if info:
+                    bbox_info = info.get("bbox") or info.get("image_bbox")
+                    if bbox_info and len(bbox_info) >= 4:
+                        page_dims = (
+                            float(bbox_info[2]) - float(bbox_info[0]),
+                            float(bbox_info[3]) - float(bbox_info[1]),
+                        )
+            bbox = getattr(blk, "bbox", None)
+            label = getattr(blk, "block_type", "") or "unknown"
+            score = getattr(blk, "confidence", None) or getattr(blk, "score", None)
+            if bbox and len(bbox) >= 4:
+                x0, y0, x1, y1 = map(float, bbox[:4])
+                if img_width and img_height and page_dims:
+                    page_w, page_h = page_dims
+                    scale_x = img_width / max(1.0, page_w)
+                    scale_y = img_height / max(1.0, page_h)
+                    x0 *= scale_x
+                    x1 *= scale_x
+                    y0 *= scale_y
+                    y1 *= scale_y
+                chunk: dict[str, Any] = {
+                    "bbox": [x0, y0, x1, y1],
+                    "label": str(label),
+                    "page_index": page_idx,
+                }
+                if score is not None:
+                    chunk["score"] = float(score)
+                if block_idx is not None:
+                    chunk["block_index"] = block_idx
+                layouts[page_idx].chunks.append(chunk)
+    return layouts
 
 
 def analyze_layout_surya(
@@ -78,24 +96,22 @@ def analyze_layout_surya(
     debug_dir: Path | None = None,
 ) -> Tuple[List[Image.Image], List]:
     """
-    Run layout detection using surya LayoutPredictor.
+    Run layout detection using marker (Surya-backed) converter to get block layout.
 
     Inputs:
         file_path: source file path
         images: pre-rendered page images
         debug_dir: optional directory to save annotated debug images
     """
-    assert images, "surya layout analysis requires at least one page image"
-    print(f"  [layout] backend: surya -> {len(images)} page(s)")
-    predictor = _load_surya_predictor()
+    assert images, "marker layout analysis requires at least one page image"
+    print(f"  [layout] backend: marker (converter) -> {len(images)} page(s)")
 
-    raw_preds = predictor(list(images)) or []
-    layout_results = []
-    for idx in range(len(images)):
-        page_pred = raw_preds[idx] if idx < len(raw_preds) else []
-        chunks = _to_chunks(page_pred)
-        layout_results.append(type("LayoutResult", (object,), {"chunks": chunks})())
+    converter = _load_marker_converter()
+    rendered = converter(str(file_path))
+    blocks = getattr(rendered, "blocks", []) or []
+    page_info = getattr(rendered, "page_info", {}) or {}
 
+    layout_results = _blocks_to_layouts(blocks, len(images), images, page_info)
     log_component_bboxes(file_path.name, layout_results)
 
     if debug_dir:
@@ -112,8 +128,8 @@ def analyze_layout_surya(
                 draw.text((x0 + 2, y0 + 2), label, fill="green")
             page_dir = debug_dir / f"{page_idx:03d}" / "debug_layout"
             page_dir.mkdir(parents=True, exist_ok=True)
-            out_path = page_dir / f"{file_path.stem}_surya_layout.png"
+            out_path = page_dir / f"{file_path.stem}_marker_layout.png"
             annotated.save(out_path)
-            print(f"     [surya] saved debug image -> {out_path}")
+            print(f"     [marker] saved debug image -> {out_path}")
 
     return list(images), layout_results

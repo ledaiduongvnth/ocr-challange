@@ -41,12 +41,7 @@ def run_ocr_pipeline(
             dbg_chunks = getattr(dbg_layout, "chunks", None) or []
             print(f"  page {dbg_idx} (idx={dbg_idx-1}) -> {len(dbg_chunks)} chunks")
             for dbg_cidx, dbg_chunk in enumerate(dbg_chunks, 1):
-                dbg_content = (
-                    dbg_chunk.get("content")
-                    or dbg_chunk.get("text")
-                    or dbg_chunk.get("markdown")
-                    or ""
-                )
+                dbg_content = dbg_chunk.get("markdown") or ""
                 block_idx = dbg_chunk.get("block_index")
                 print(f"    chunk {dbg_cidx} (block_idx={block_idx}): {dbg_content}")
 
@@ -117,35 +112,30 @@ def run_ocr_pipeline(
                     target_chunks = getattr(target_layout, "chunks", None) or []
                     if chunk_idx < len(target_chunks):
                         target_chunk = target_chunks[chunk_idx]
-                        content_value = res.markdown or getattr(res, "raw", "") or ""
-                        if res.html and ("<table" in res.html or "</table>" in res.html):
-                            rendered = HTML_TEMPLATE.format(table_rows=res.html)
-                            target_chunk["content"] = rendered
-                        else:
-                            target_chunk["content"] = content_value
+                        target_chunk["markdown"] = res.markdown
+                        target_chunk["html"] = res.html
+
 
     updated_pages: list[BatchOutputItem] = []
     for layout in layout_results:
         chunks = getattr(layout, "chunks", None) or []
-        lines = []
+        markdown_blocks = []
         html_blocks = []
         for chunk in chunks:
-            content = (
-                chunk.get("content")
-                or chunk.get("text")
-                or chunk.get("markdown")
-                or ""
-            )
-            if content:
-                lines.append(str(content))
-                if "<table" in content or "<p" in content or "<html" in content:
-                    html_blocks.append(content)
-                else:
-                    html_blocks.append(f"<p>{content}</p>")
-        layout.markdown = "\n\n".join(lines) if lines else ""
+            markdown = chunk.get("markdown")
+            markdown_blocks.append(str(markdown))
+            html = chunk.get("html")
+            if "<table" in html or "<p" in html or "<html" in html:
+                html_blocks.append(html)
+            else:
+                html_blocks.append(f"<p>{html}</p>")
+        layout.markdown = "\n\n".join(markdown_blocks) if markdown_blocks else ""
         layout.html = (
             f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""
         )
+        layout.token_count = 0
+        layout.images = {}
+        layout.page_box = []
         updated_pages.append(layout)
 
     if debug_dir:
@@ -154,12 +144,7 @@ def run_ocr_pipeline(
             dbg_chunks = getattr(dbg_layout, "chunks", None) or []
             print(f"  page {dbg_idx} (idx={dbg_idx-1}) -> {len(dbg_chunks)} chunks")
             for dbg_cidx, dbg_chunk in enumerate(dbg_chunks, 1):
-                dbg_content = (
-                    dbg_chunk.get("content")
-                    or dbg_chunk.get("text")
-                    or dbg_chunk.get("markdown")
-                    or ""
-                )
+                dbg_content = dbg_chunk.get("markdown") or ""
                 block_idx = dbg_chunk.get("block_index")
                 print(f"    chunk {dbg_cidx} (block_idx={block_idx}): {dbg_content}")
 

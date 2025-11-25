@@ -157,14 +157,6 @@ def run():
                 )
 
         # Ensure outputs have token_count for save_merged_output expectations
-        if page_outputs:
-            for out in page_outputs:
-                if not hasattr(out, "token_count"):
-                    out.token_count = 0
-                if not hasattr(out, "images"):
-                    out.images = {}
-                if not hasattr(out, "page_box"):
-                    out.page_box = []
 
         if args.paginate_output and page_outputs:
             for page_idx, page_res in enumerate(page_outputs, 1):

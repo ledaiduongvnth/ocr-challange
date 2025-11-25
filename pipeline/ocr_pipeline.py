@@ -5,8 +5,8 @@ from typing import Callable, List
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 from utils import HTML_TEMPLATE
-from chandra.prompts import PROMPT_MAPPING
-prompt = PROMPT_MAPPING["ocr_layout"]
+from chandra.prompts import OCR_PROMPT
+from hoang_prompt import TABLE_ONLY_PROMPT, OCR_PROMPT
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -70,10 +70,12 @@ def run_ocr_pipeline(
                     cropped.save(crop_path)
                 except Exception:
                     pass
+            
+            prompt = TABLE_ONLY_PROMPT if label == "table" else OCR_PROMPT
             component_items.append(
                     batch_input_cls(
                         image=cropped,
-                        prompt_type="ocr_layout",
+                        prompt_type="ocr",
                         prompt=prompt,
                     )
                 )    

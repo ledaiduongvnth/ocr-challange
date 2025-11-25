@@ -122,13 +122,15 @@ def run_ocr_pipeline(
         markdown_blocks = []
         html_blocks = []
         for chunk in chunks:
-            markdown = chunk.get("markdown")
-            markdown_blocks.append(str(markdown))
-            html = chunk.get("html")
-            if "<table" in html or "<p" in html or "<html" in html:
-                html_blocks.append(html)
-            else:
-                html_blocks.append(f"<p>{html}</p>")
+            markdown = chunk.get("markdown") or ""
+            html = chunk.get("html") or ""
+            if markdown:
+                markdown_blocks.append(str(markdown))
+            if html:
+                if "<table" in html or "<p" in html or "<html" in html:
+                    html_blocks.append(html)
+                else:
+                    html_blocks.append(f"<p>{html}</p>")
         layout.markdown = "\n\n".join(markdown_blocks) if markdown_blocks else ""
         layout.html = (
             f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""

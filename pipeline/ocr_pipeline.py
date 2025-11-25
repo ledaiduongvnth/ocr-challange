@@ -98,11 +98,11 @@ def run_ocr_pipeline(
                         target_chunk["markdown"] = res.markdown or getattr(res, "raw", "") or ""
                         target_chunk["html"] = res.html or getattr(res, "raw", "") or ""
 
-                        print(res.html)
-                        print("----------")
-                        # print(res.markdown)
-                        print(getattr(res, "raw", ""))
-                        print("--------------------------------")
+                        # print(res.html)
+                        # print("----------")
+                        # # print(res.markdown)
+                        # print(getattr(res, "raw", ""))
+                        # print("--------------------------------")
 
 
     updated_pages: list[BatchOutputItem] = []

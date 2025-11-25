@@ -57,24 +57,7 @@ Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 Guidelines:
 * Inline math: Surround math with <math>...</math> tags. Math expressions should be rendered in KaTeX-compatible LaTeX. Use display for block math.
 
-* Tables (with or without visible borders):
-  - Always represent tabular data using <table>, <thead>, <tbody>, <tr>, <th>, <td>, and optionally <caption>.
-  - For tables with visible grid lines (borders), treat each cell separated by lines as a distinct <td> or <th>.
-  - For tables without visible borders, still detect columns using vertical alignment of text and numbers, and encode them as a table (not plain paragraphs).
-  - Determine the base number of columns from the header row (for example, “Cuối năm”, “Đầu năm”, …) and keep the structure consistent across rows.
-  - *Merged cells (very important):*
-    - If a cell visually spans multiple columns horizontally, use colspan to match the exact number of columns it covers.
-    - If a cell visually spans multiple rows vertically, use rowspan to match the exact number of rows it covers.
-    - Do NOT duplicate the same text into hidden cells. Represent it once with the appropriate colspan/rowspan.
-    - Even when a visual cell is merged, all underlying logical cells must still exist in the HTML structure (other rows must have the correct number of <td>, or use colspan/rowspan accordingly).
-  - Empty cells:
-    - If a cell appears empty in the image, still create an empty <td></td>. Do NOT drop or skip these cells.
-  - Financial tables, balance sheets, invoices:
-    - Lines like section headers (“1. Tiền”, “2. Các khoản đầu tư…”) that stretch across the entire row should be represented as a row with one <td> or <th> using colspan equal to the total number of columns.
-    - Sub-items (e.g. “- Tiền mặt”, “- Tiền gửi Ngân hàng không kỳ hạn”) should stay in the first column, with their corresponding numeric values in the correct numeric columns.
-  - Adjacent table segments:
-    - If multiple table regions are vertically stacked with aligned columns and only a small gap between them (i.e., they are visually a continuation of the same table), treat them as a single logical <table> and merge them into one table instead of separate tables.
-  - Avoid splitting one logical table into many smaller tables unless there is a clear visual separation.
+
 
 * Formatting: Maintain consistent formatting with the image, including spacing, indentation, list markers, subscripts/superscripts, and special characters.
 
@@ -138,6 +121,7 @@ Requirements:
 - Do not add boilerplate text or headings that are not visible.
 - If the header repeats in the crop, include it once at the top.
 - Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
+
 {PROMPT_ENDING}
 """.strip()
 
@@ -146,3 +130,23 @@ PROMPT_MAPPING = {
     "ocr": OCR_PROMPT,
     "ocr_table": TABLE_ONLY_PROMPT,
 }
+
+
+# * Tables (with or without visible borders):
+#   - Always represent tabular data using <table>, <thead>, <tbody>, <tr>, <th>, <td>, and optionally <caption>.
+#   - For tables with visible grid lines (borders), treat each cell separated by lines as a distinct <td> or <th>.
+#   - For tables without visible borders, still detect columns using vertical alignment of text and numbers, and encode them as a table (not plain paragraphs).
+#   - Determine the base number of columns from the header row (for example, “Cuối năm”, “Đầu năm”, …) and keep the structure consistent across rows.
+#   - *Merged cells (very important):*
+#     - If a cell visually spans multiple columns horizontally, use colspan to match the exact number of columns it covers.
+#     - If a cell visually spans multiple rows vertically, use rowspan to match the exact number of rows it covers.
+#     - Do NOT duplicate the same text into hidden cells. Represent it once with the appropriate colspan/rowspan.
+#     - Even when a visual cell is merged, all underlying logical cells must still exist in the HTML structure (other rows must have the correct number of <td>, or use colspan/rowspan accordingly).
+#   - Empty cells:
+#     - If a cell appears empty in the image, still create an empty <td></td>. Do NOT drop or skip these cells.
+#   - Financial tables, balance sheets, invoices:
+#     - Lines like section headers (“1. Tiền”, “2. Các khoản đầu tư…”) that stretch across the entire row should be represented as a row with one <td> or <th> using colspan equal to the total number of columns.
+#     - Sub-items (e.g. “- Tiền mặt”, “- Tiền gửi Ngân hàng không kỳ hạn”) should stay in the first column, with their corresponding numeric values in the correct numeric columns.
+#   - Adjacent table segments:
+#     - If multiple table regions are vertically stacked with aligned columns and only a small gap between them (i.e., they are visually a continuation of the same table), treat them as a single logical <table> and merge them into one table instead of separate tables.
+#   - Avoid splitting one logical table into many smaller tables unless there is a clear visual separation.

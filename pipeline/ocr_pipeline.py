@@ -80,13 +80,25 @@ def run_ocr_pipeline(
                     cropped.save(crop_path)
                 except Exception:
                     pass
-            component_items.append(
+            if label == "table":
+                custom_prompt = prompt_source["ocr_table"]
+                component_items.append(
                 batch_input_cls(
                     image=cropped,
-                    prompt_type="ocr_layout",
-                    prompt=base_prompt,
+                    prompt_type="ocr",
+                    prompt=custom_prompt,
                 )
             )
+            else:
+                custom_prompt = prompt_source["ocr"]
+
+                component_items.append(
+                    batch_input_cls(
+                        image=cropped,
+                        prompt_type="ocr",
+                        prompt=custom_prompt,
+                    )
+                )
             component_index_map.append((page_idx, chunk_idx))
 
     print(f"     batching {len(component_items)} detected components for OCR")

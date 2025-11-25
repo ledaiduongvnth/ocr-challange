@@ -66,7 +66,7 @@ def run_ocr_pipeline(
             x0, y0 = int(x0), int(y0)
             x1, y1 = int(x1), int(y1)
             label = (chunk.get("label") or chunk.get("type") or "").lower()
-            pad = 5 if label in {"table"} else 3
+            pad = 0 if label in {"table"} else 0
             x0 = max(0, min(x0 - pad, page_image.width))
             y0 = max(0, min(y0 - pad, page_image.height))
             x1 = max(x0 + 1, min(x1 + pad, page_image.width))

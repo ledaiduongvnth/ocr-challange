@@ -21,7 +21,7 @@ from pp_doclayout import analyze_layout_pp_doclayout
 from pp_structure_preprocess import preprocess_with_ppstructure
 from pp_structure_postprocess import postprocess_with_ppstructure
 from surya_layout import analyze_layout_surya
-from utils import filter_non_text_chunks
+from utils import filter_non_text_chunks, log_component_bboxes
 
 
 
@@ -125,13 +125,15 @@ def run():
                 batch_size=batch_size,
                 debug_dir=debug_layout_dir,
             )
+        layout_results = filter_non_text_chunks(layout_results)
+        log_component_bboxes(file_path.name, layout_results)
+
         if args.postprocess_backend == "ppstructure":
             layout_results = postprocess_with_ppstructure(
                 layout_results, images=page_images
             )
-        layout_results = filter_non_text_chunks(layout_results)
 
-
+        is_native_pdf = False
         match (is_native_pdf,):
             case (True,):
                 page_outputs = build_native_outputs(

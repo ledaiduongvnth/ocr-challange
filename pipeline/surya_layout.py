@@ -87,6 +87,8 @@ def _blocks_to_layouts(
                 if block_idx is not None:
                     chunk["block_index"] = block_idx
                 layouts[page_idx].chunks.append(chunk)
+    for layout in layouts:
+        layout.chunks.sort(key=lambda chunk: chunk.get("block_index", float("inf")))
     return layouts
 
 
@@ -112,8 +114,6 @@ def analyze_layout_surya(
     page_info = getattr(rendered, "page_info", {}) or {}
 
     layout_results = _blocks_to_layouts(blocks, len(images), images, page_info)
-    log_component_bboxes(file_path.name, layout_results)
-
     if debug_dir:
         for page_idx, (img, layout) in enumerate(zip(images, layout_results), 1):
             annotated = img.convert("RGB")

@@ -121,7 +121,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--postprocess-backend",
         choices=("none", "ppstructure"),
-        default="ppstructure",
+        default="None",
         help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
     )
     parser.add_argument(

@@ -121,6 +121,7 @@ Requirements:
 - Do not add boilerplate text or headings that are not visible.
 - If the header repeats in the crop, include it once at the top.
 - Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
+- Do not intentionally shorten the table.
 
 {PROMPT_ENDING}
 """.strip()

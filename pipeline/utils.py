@@ -54,7 +54,7 @@ def log_component_bboxes(file_name: str, results: List) -> None:
 
 
 def filter_non_text_chunks(layout_results: List, images: Sequence | None = None):
-    """Remove layout chunks whose label contains 'picture', 'image', 'page', or 'figure' (case-insensitive)."""
+    """Remove layout chunks whose label contains 'picture', 'image', or 'figure' (case-insensitive)."""
     if not layout_results:
         return layout_results
     filtered = []
@@ -68,7 +68,7 @@ def filter_non_text_chunks(layout_results: List, images: Sequence | None = None)
             for c in chunks
             if all(
                 banned not in str(c.get("label", "")).lower()
-                for banned in ("picture", "image", "page", "figure")
+                for banned in ("picture", "image", "figure")
             )
         ]
         res.chunks = keep

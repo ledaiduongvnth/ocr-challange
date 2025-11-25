@@ -5,7 +5,8 @@ from typing import Callable, List
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 from utils import HTML_TEMPLATE
-
+from chandra.prompts import PROMPT_MAPPING
+prompt = PROMPT_MAPPING["ocr_layout"]
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -19,14 +20,6 @@ def run_ocr_pipeline(
     layout_results: List | None = None,
     debug_dir: Path | None = None,
 ) -> List[BatchOutputItem]:
-    prompt_source = None
-    if base_prompt == "default":
-        from chandra.prompts import PROMPT_MAPPING
-        prompt_source = PROMPT_MAPPING
-    else:
-        from chandra_prompts import PROMPT_MAPPING
-        prompt_source = PROMPT_MAPPING
-    base_prompt = prompt_source["ocr_layout"]
     assert images is not None, "Preloaded images are required for OCR pipeline"
     print(f"  -> using preloaded images ({len(images)} page(s))")
 
@@ -77,25 +70,13 @@ def run_ocr_pipeline(
                     cropped.save(crop_path)
                 except Exception:
                     pass
-            if label == "table":
-                custom_prompt = prompt_source["ocr_table"]
-                component_items.append(
-                batch_input_cls(
-                    image=cropped,
-                    prompt_type="ocr",
-                    prompt=custom_prompt,
-                )
-            )
-            else:
-                custom_prompt = prompt_source["ocr"]
-
-                component_items.append(
+            component_items.append(
                     batch_input_cls(
                         image=cropped,
-                        prompt_type="ocr",
-                        prompt=custom_prompt,
+                        prompt_type="ocr_layout",
+                        prompt=prompt,
                     )
-                )
+                )    
             component_index_map.append((page_idx, chunk_idx))
 
     print(f"     batching {len(component_items)} detected components for OCR")
@@ -112,13 +93,17 @@ def run_ocr_pipeline(
                     target_chunks = getattr(target_layout, "chunks", None) or []
                     if chunk_idx < len(target_chunks):
                         target_chunk = target_chunks[chunk_idx]
-                        target_chunk["markdown"] = res.markdown
-                        target_chunk["html"] = res.html
+                        target_chunk["markdown"] = res.markdown or getattr(res, "raw", "") or ""
+                        target_chunk["html"] = res.html or getattr(res, "raw", "") or ""
+
+                        print(target_chunk)
+                        print("--------------------------------")
 
 
     updated_pages: list[BatchOutputItem] = []
     for layout in layout_results:
         chunks = getattr(layout, "chunks", None) or []
+        print(chunks)
         markdown_blocks = []
         html_blocks = []
         for chunk in chunks:

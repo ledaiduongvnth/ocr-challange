@@ -14,7 +14,6 @@ def run_ocr_pipeline(
     generate_kwargs: dict,
     base_prompt: str | None,
     batch_size: int,
-    loader: Callable,
     batch_input_cls=BatchInputItem,
     images: List | None = None,
     layout_results: List | None = None,
@@ -28,12 +27,8 @@ def run_ocr_pipeline(
         from chandra_prompts import PROMPT_MAPPING
         prompt_source = PROMPT_MAPPING
     base_prompt = prompt_source["ocr_layout"]
-    if images is None:
-        config = {"page_range": args.page_range} if args.page_range else {}
-        images = loader(str(file_path), config)
-        print(f"  -> {len(images)} page(s)")
-    else:
-        print(f"  -> using preloaded images ({len(images)} page(s))")
+    assert images is not None, "Preloaded images are required for OCR pipeline"
+    print(f"  -> using preloaded images ({len(images)} page(s))")
 
     assert layout_results is not None and len(layout_results) == len(images), (
         "layout_results (from chandra_layout_analysis/pp_doclayout/native_pdf) must be provided "
@@ -71,7 +66,7 @@ def run_ocr_pipeline(
             x0, y0 = int(x0), int(y0)
             x1, y1 = int(x1), int(y1)
             label = (chunk.get("label") or chunk.get("type") or "").lower()
-            pad = 5 if label in {"table"} else 3
+            pad = 10 if label in {"table"} else 10
             x0 = max(0, min(x0 - pad, page_image.width))
             y0 = max(0, min(y0 - pad, page_image.height))
             x1 = max(x0 + 1, min(x1 + pad, page_image.width))

@@ -20,6 +20,7 @@ from chandra_layout_analysis import chandra_analyze_layout
 from pp_doclayout import analyze_layout_pp_doclayout
 from pp_structure_preprocess import preprocess_with_ppstructure
 from pp_structure_postprocess import postprocess_with_ppstructure
+from surya_layout import analyze_layout_surya
 from utils import filter_non_text_chunks
 
 
@@ -67,64 +68,69 @@ def run():
         file_output_root = args.output_dir / file_path.stem
         results_dir = file_output_root / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            load_config = {"page_range": args.page_range} if args.page_range else {}
-            page_images = load_file(str(file_path), load_config)
-            print(f"  [layout] loaded {len(page_images)} page(s)")
-            debug_layout_dir = file_output_root if args.html else None
-            debug_ocr_dir = file_output_root if args.html else None
-            debug_native_dir = debug_ocr_dir
-            if args.preprocess_backend == "ppstructure":
-                print("  [preprocess] backend: ppstructure (orientation/unwarp)")
-                page_images = preprocess_with_ppstructure(
-                    page_images,
-                    use_orientation=True,
-                    use_unwarp=True,
-                    debug_dir=debug_layout_dir,
-                )
 
-            # Run layout analysis using selected backend
-            if args.layout_backend == "ppdoclayout":
-                print("  [layout] backend: PP-DocLayout-L")
-                _, layout_results = analyze_layout_pp_doclayout(
-                    file_path=file_path,
-                    images=page_images,
-                    model_name="PP-DocLayout-L",
-                    debug_dir=debug_layout_dir,
-                )
-            elif args.layout_backend == "ppdoclayout_plus":
-                print("  [layout] backend: PP-DocLayout_plus-L")
-                _, layout_results = analyze_layout_pp_doclayout(
-                    file_path=file_path,
-                    images=page_images,
-                    model_name="PP-DocLayout_plus-L",
-                    debug_dir=debug_layout_dir,
-                )
-            elif args.layout_backend == "PicoDet_layout_1x_table":
-                print("  [layout] backend: PicoDet_layout_1x_table")
-                _, layout_results = analyze_layout_pp_doclayout(
-                    file_path=file_path,
-                    images=page_images,
-                    model_name="PicoDet_layout_1x_table",
-                    debug_dir=debug_layout_dir,
-                )
-            else:
-                print("  [layout] backend: chandra")
-                _, layout_results = chandra_analyze_layout(
-                    file_path=file_path,
-                    images=page_images,
-                    infer_fn=lambda items: inference.generate(items, **generate_kwargs),
-                    prompt=None,
-                    batch_size=batch_size,
-                    debug_dir=debug_layout_dir,
-                )
-            if args.postprocess_backend == "ppstructure":
-                layout_results = postprocess_with_ppstructure(
-                    layout_results, images=page_images
-                )
-            layout_results = filter_non_text_chunks(layout_results)
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"Layout analysis failed ({exc}); continuing without layout hints.")
+        load_config = {"page_range": args.page_range} if args.page_range else {}
+        page_images = load_file(str(file_path), load_config)
+        print(f"  [layout] loaded {len(page_images)} page(s)")
+        debug_layout_dir = file_output_root if args.html else None
+        debug_ocr_dir = file_output_root if args.html else None
+        debug_native_dir = debug_ocr_dir
+        if args.preprocess_backend == "ppstructure":
+            print("  [preprocess] backend: ppstructure (orientation/unwarp)")
+            page_images = preprocess_with_ppstructure(
+                page_images,
+                use_orientation=True,
+                use_unwarp=True,
+                debug_dir=debug_layout_dir,
+            )
+
+        # Run layout analysis using selected backend
+        if args.layout_backend == "ppdoclayout":
+            print("  [layout] backend: PP-DocLayout-L")
+            _, layout_results = analyze_layout_pp_doclayout(
+                file_path=file_path,
+                images=page_images,
+                model_name="PP-DocLayout-L",
+                debug_dir=debug_layout_dir,
+            )
+        elif args.layout_backend == "ppdoclayout_plus":
+            print("  [layout] backend: PP-DocLayout_plus-L")
+            _, layout_results = analyze_layout_pp_doclayout(
+                file_path=file_path,
+                images=page_images,
+                model_name="PP-DocLayout_plus-L",
+                debug_dir=debug_layout_dir,
+            )
+        elif args.layout_backend == "PicoDet_layout_1x_table":
+            print("  [layout] backend: PicoDet_layout_1x_table")
+            _, layout_results = analyze_layout_pp_doclayout(
+                file_path=file_path,
+                images=page_images,
+                model_name="PicoDet_layout_1x_table",
+                debug_dir=debug_layout_dir,
+            )
+        elif args.layout_backend == "surya":
+            _, layout_results = analyze_layout_surya(
+                file_path=file_path,
+                images=page_images,
+                debug_dir=debug_layout_dir,
+            )
+        else:
+            print("  [layout] backend: chandra")
+            _, layout_results = chandra_analyze_layout(
+                file_path=file_path,
+                images=page_images,
+                infer_fn=lambda items: inference.generate(items, **generate_kwargs),
+                prompt=None,
+                batch_size=batch_size,
+                debug_dir=debug_layout_dir,
+            )
+        if args.postprocess_backend == "ppstructure":
+            layout_results = postprocess_with_ppstructure(
+                layout_results, images=page_images
+            )
+        layout_results = filter_non_text_chunks(layout_results)
+
 
         match (is_native_pdf,):
             case (True,):
@@ -142,12 +148,21 @@ def run():
                     generate_kwargs=generate_kwargs,
                     base_prompt=args.prompt,
                     batch_size=batch_size,
-                    loader=load_file,
                     batch_input_cls=BatchInputItem,
                     images=page_images,
                     layout_results=layout_results,
                     debug_dir=debug_ocr_dir,
                 )
+
+        # Ensure outputs have token_count for save_merged_output expectations
+        if page_outputs:
+            for out in page_outputs:
+                if not hasattr(out, "token_count"):
+                    out.token_count = 0
+                if not hasattr(out, "images"):
+                    out.images = {}
+                if not hasattr(out, "page_box"):
+                    out.page_box = []
 
         if args.paginate_output and page_outputs:
             for page_idx, page_res in enumerate(page_outputs, 1):
@@ -157,7 +172,7 @@ def run():
                     page_dir,
                     f"{file_path.stem}_p{page_idx}",
                     [page_res],
-                    save_images=args.include_images,
+                    save_images=False,
                     save_html=args.html,
                     paginate_output=False,
                 )
@@ -166,7 +181,7 @@ def run():
                 results_dir,
                 file_path.name,
                 page_outputs,
-                save_images=args.include_images,
+                save_images=False,
                 save_html=args.html,
                 paginate_output=args.paginate_output,
             )

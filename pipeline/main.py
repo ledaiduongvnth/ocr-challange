@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
-import shutil
+import os
+import tempfile
 from pathlib import Path
 from textwrap import dedent
 from typing import List
+
+from PIL import Image
 
 from cli_utils import (
     apply_env_overrides,
@@ -71,7 +74,25 @@ def run():
         results_dir.mkdir(parents=True, exist_ok=True)
 
         load_config = {"page_range": args.page_range} if args.page_range else {}
-        page_images = load_file(str(file_path), load_config)
+        temp_pdf_path: Path | None = None
+        source_path = file_path
+        if not is_pdf:
+            # Convert single-image inputs into a temporary PDF for downstream tools.
+            with Image.open(file_path) as img:
+                rgb_img = img.convert("RGB")
+                # Downscale to fit within roughly A4 at ~150dpi to reduce memory footprint.
+                # ######################################################
+                # a4_target = (1240, 1754)
+                # resample = getattr(Image, "Resampling", Image).LANCZOS
+                # rgb_img.thumbnail(a4_target, resample)
+                # #######################################################
+                tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
+                os.close(tmp_handle)
+                temp_pdf_path = Path(tmp_name)
+                rgb_img.save(temp_pdf_path)
+                rgb_img.close()
+                source_path = temp_pdf_path
+        page_images = load_file(str(source_path), load_config)
         print(f"  [layout] loaded {len(page_images)} page(s)")
         if page_images:
             print("  [orientation] normalizing page rotations via PaddleOCR")
@@ -101,7 +122,7 @@ def run():
         if args.layout_backend == "ppdoclayout":
             print("  [layout] backend: PP-DocLayout-L")
             _, layout_results = analyze_layout_pp_doclayout(
-                file_path=file_path,
+                file_path=source_path,
                 images=page_images,
                 model_name="PP-DocLayout-L",
                 debug_dir=debug_layout_dir,
@@ -109,7 +130,7 @@ def run():
         elif args.layout_backend == "ppdoclayout_plus":
             print("  [layout] backend: PP-DocLayout_plus-L")
             _, layout_results = analyze_layout_pp_doclayout(
-                file_path=file_path,
+                file_path=source_path,
                 images=page_images,
                 model_name="PP-DocLayout_plus-L",
                 debug_dir=debug_layout_dir,
@@ -117,21 +138,21 @@ def run():
         elif args.layout_backend == "PicoDet_layout_1x_table":
             print("  [layout] backend: PicoDet_layout_1x_table")
             _, layout_results = analyze_layout_pp_doclayout(
-                file_path=file_path,
+                file_path=source_path,
                 images=page_images,
                 model_name="PicoDet_layout_1x_table",
                 debug_dir=debug_layout_dir,
             )
         elif args.layout_backend == "surya":
             _, layout_results = analyze_layout_surya(
-                file_path=file_path,
+                file_path=source_path,
                 images=page_images,
                 debug_dir=debug_layout_dir,
             )
         else:
             print("  [layout] backend: chandra")
             _, layout_results = chandra_analyze_layout(
-                file_path=file_path,
+                file_path=source_path,
                 images=page_images,
                 infer_fn=lambda items: inference.generate(items, **generate_kwargs),
                 prompt=None,
@@ -192,6 +213,19 @@ def run():
                 save_html=args.html,
                 paginate_output=args.paginate_output,
             )
+
+        if temp_pdf_path and temp_pdf_path.exists():
+            try:
+                temp_pdf_path.unlink()
+            except Exception:
+                pass
+
+        # Proactively close any PIL images to free memory.
+        for img in page_images or []:
+            try:
+                img.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

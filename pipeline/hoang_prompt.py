@@ -56,19 +56,13 @@ Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 
 Guidelines:
 * Inline math: Surround math with <math>...</math> tags. Math expressions should be rendered in KaTeX-compatible LaTeX. Use display for block math.
-
+* Tables: Use colspan and rowspan attributes to match table structure.
 * Formatting: Maintain consistent formatting with the image, including spacing, indentation, list markers, subscripts/superscripts, and special characters.
-
 * Images: Include a description of any images in the alt attribute of an <img> tag. Do not fill out the src property.
-
 * Forms: Mark checkboxes and radio buttons properly using <input> with the appropriate type and checked attributes.
-
 * Text: Join lines together properly into paragraphs using <p>...</p> tags. Use <br> tags for line breaks within paragraphs, but only when absolutely necessary to maintain meaning.
-
 * Layout: Use the simplest possible HTML structure that accurately represents the content of the block.
-
 * Reading order: Make sure the text is accurate and easy for a human to read and interpret. Reading order should be correct and natural from top to bottom, left to right.
-
 * Headers and footers: In header or footer content, lines can easily get stuck together. Remember to separate them into distinct elements when appropriate.
 """.strip()
 
@@ -104,17 +98,49 @@ OCR this image to HTML.
 {PROMPT_ENDING}
 """.strip()
 
+# TABLE_ONLY_PROMPT = f"""
+# You are given an image that contains only a table (or a single table region already cropped).
+# Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers.
+
+# Requirements:
+# - Output a single <table> with <thead>/<tbody>/<tr>/<th>/<td>. Add <caption> if present.
+# - All characters from the crop must live inside that <table>; never output loose <p>, <div>, or text nodes outside table cells.
+# - Any heading/section text printed within the table borders must stay inside the table grid: if it truly spans the full width use a <th colspan="total-columns"> row, otherwise keep it inside only the columns it covers.
+# - Section headers or subtotal rows must only span the actual columns they occupy in the image (e.g., if they sit inside the first "label" column, keep them inside that column instead of extending into numeric columns).
+# - Derive the canonical column count from the header and keep every row on those column boundaries.
+# - Always include every visible header row (column names, reporting periods, etc.). If the header text sits slightly above the grid or spans multiple rows, place it in <thead> using <th> cells and the necessary colspan/rowspan so no header text is lost.
+# - Preserve merged cells with exact colspan/rowspan. Do NOT duplicate text into hidden cells; cover them via spans.
+# - Only use colspan/rowspan when the source cell is actually merged on the page; if the grid shows separate boxes (even if the text is identical or the cell is empty), keep them as distinct <td> cells instead of merging.
+# - If stacked segments share aligned columns, merge them into one logical <table>.
+# - Keep empty cells as empty <td></td>. Never drop a cell.
+# - Keep row/column alignment strict: even if text visually shifts, keep it inside the intended table cell and use <br> for internal line breaks instead of moving text outside the grid.
+# - Every <tr> must cover the same total number of columns as defined by the header. If a label column is blank, emit an empty <td></td> rather than shifting numeric values left or right.
+# - Keep numeric columns in their correct numeric columns; do not reorder. Use the header’s vertical guides to keep alignment.
+# - Preserve signs, separators, and units exactly (e.g., parentheses for negatives, thousand separators, %, ₫).
+# - Do not add boilerplate text or headings that are not visible.
+# - Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
+# - Keep the logical structure of the table as shown in the image, no additional or editing is allowed.
+
+# {PROMPT_ENDING}
+# """.strip()
+
 TABLE_ONLY_PROMPT = f"""
-Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
-You are given an image that contains only a table (or a single table region already cropped).
-Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers.
+You are given an image that contains text and one or more tables.
+Return only the HTML for each table, nothing else. Do not wrap in extra <div> or layout markers.
 
 Requirements:
-- Output a single <table> with <thead>/<tbody>/<tr>/<th>/<td>. Add <caption> if present.
+- Output a single <table> with <thead>/<tbody>/<tr>/<th>/<td> for each table. Add <caption> if present.
+- All characters from the crop must live inside that <table>; never output loose <p>, <div>, or text nodes outside table cells.
+- Any heading/section text printed within the table borders must stay inside the table grid: if it truly spans the full width use a <th colspan="total-columns"> row, otherwise keep it inside only the columns it covers.
+- Section headers or subtotal rows must only span the actual columns they occupy in the image (e.g., if they sit inside the first "label" column, keep them inside that column instead of extending into numeric columns).
 - Derive the canonical column count from the header and keep every row on those column boundaries.
+- Always include every visible header row (column names, reporting periods, etc.). If the header text sits slightly above the grid or spans multiple rows, place it in <thead> using <th> cells and the necessary colspan/rowspan so no header text is lost.
 - Preserve merged cells with exact colspan/rowspan. Do NOT duplicate text into hidden cells; cover them via spans.
+- Only use colspan/rowspan when the source cell is actually merged on the page; if the grid shows separate boxes (even if the text is identical or the cell is empty), keep them as distinct <td> cells instead of merging.
 - If stacked segments share aligned columns, merge them into one logical <table>.
 - Keep empty cells as empty <td></td>. Never drop a cell.
+- Keep row/column alignment strict: even if text visually shifts, keep it inside the intended table cell and use <br> for internal line breaks instead of moving text outside the grid.
+- Every <tr> must cover the same total number of columns as defined by the header. If a label column is blank, emit an empty <td></td> rather than shifting numeric values left or right.
 - Keep numeric columns in their correct numeric columns; do not reorder. Use the header’s vertical guides to keep alignment.
 - Preserve signs, separators, and units exactly (e.g., parentheses for negatives, thousand separators, %, ₫).
 - Do not add boilerplate text or headings that are not visible.
@@ -123,12 +149,8 @@ Requirements:
 
 {PROMPT_ENDING}
 """.strip()
-# TABLE_ONLY_PROMPT = f"""
-# You are given an image that contains only a table (or a single table region already cropped).
-# Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers
 
-# {PROMPT_ENDING}
-# """.strip()
+
 
 PROMPT_MAPPING = {
     "ocr_layout": OCR_LAYOUT_PROMPT,

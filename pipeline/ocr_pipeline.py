@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, List
+from typing import List
 
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 from utils import HTML_TEMPLATE
-from chandra.prompts import OCR_PROMPT
-from hoang_prompt import TABLE_ONLY_PROMPT, OCR_PROMPT
+from hoang_prompt import OCR_PROMPT, TABLE_ONLY_PROMPT
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -43,25 +42,14 @@ def run_ocr_pipeline(
     component_index_map: list[tuple[int, int]] = []
     for page_idx, layout in enumerate(layout_results, 0):
         chunks = getattr(layout, "chunks", None) or []
-        page_image = images[page_idx]
         for chunk_idx, chunk in enumerate(chunks):
-            bbox = chunk.get("bbox")
             block_idx = chunk.get("block_index")
-            if not bbox or len(bbox) < 4:
-                continue
-            try:
-                x0, y0, x1, y1 = [max(0, float(v)) for v in bbox[:4]]
-            except Exception:
-                continue
-            x0, y0 = int(x0), int(y0)
-            x1, y1 = int(x1), int(y1)
             label = (chunk.get("label") or chunk.get("type") or "").lower()
-            pad = 0 if label in {"table"} else 0
-            x0 = max(0, min(x0 - pad, page_image.width))
-            y0 = max(0, min(y0 - pad, page_image.height))
-            x1 = max(x0 + 1, min(x1 + pad, page_image.width))
-            y1 = max(y0 + 1, min(y1 + pad, page_image.height))
-            cropped = page_image.crop((x0, y0, x1, y1))
+
+            # Use precomputed crop from layout stage; it must be present.
+            cropped = chunk.get("crop_image")
+            assert cropped is not None, "chunk['crop_image'] must be provided by layout stage"
+
             if debug_dir:
                 try:
                     page_dir = debug_dir / f"{page_idx+1:03d}" / "debug_ocr_components"
@@ -70,15 +58,15 @@ def run_ocr_pipeline(
                     cropped.save(crop_path)
                 except Exception:
                     pass
-            
+
             prompt = TABLE_ONLY_PROMPT if label == "table" else OCR_PROMPT
             component_items.append(
-                    batch_input_cls(
-                        image=cropped,
-                        prompt_type="ocr",
-                        prompt=prompt,
-                    )
-                )    
+                batch_input_cls(
+                    image=cropped,
+                    prompt_type="ocr",
+                    prompt=prompt,
+                )
+            )
             component_index_map.append((page_idx, chunk_idx))
 
     print(f"     batching {len(component_items)} detected components for OCR")
@@ -108,7 +96,6 @@ def run_ocr_pipeline(
     updated_pages: list[BatchOutputItem] = []
     for layout in layout_results:
         chunks = getattr(layout, "chunks", None) or []
-        print(chunks)
         markdown_blocks = []
         html_blocks = []
         for chunk in chunks:

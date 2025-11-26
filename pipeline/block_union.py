@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 def merge_overlapping_non_table_chunks(
     layout_results: Sequence, images: Sequence[Image.Image] | None = None
 ) -> List:
-    """Merge overlapping non-table chunks on each page into single combined chunks."""
+    """Merge overlapping table/non-table chunks per page and attach cropped images."""
 
     def overlaps(b1, b2) -> bool:
         if not b1 or not b2 or len(b1) < 4 or len(b2) < 4:
@@ -17,123 +17,119 @@ def merge_overlapping_non_table_chunks(
         x0b, y0b, x1b, y1b = b2[:4]
         return not (x1 <= x0b or x0 >= x1b or y1 <= y0b or y0 >= y1b)
 
+    def area(box) -> float:
+        if not box or len(box) < 4:
+            return 0.0
+        return max(0.0, float(box[2]) - float(box[0])) * max(0.0, float(box[3]) - float(box[1]))
+
+    def label_of(chunk: dict[str, Any]) -> str:
+        return str(
+            chunk.get("label")
+            or chunk.get("type")
+            or chunk.get("category")
+            or ""
+        ).lower()
+
+    def merge_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not chunks:
+            return []
+        merged: list[dict[str, Any]] = []
+        used = [False] * len(chunks)
+        for idx, chunk in enumerate(chunks):
+            if used[idx]:
+                continue
+            used[idx] = True
+            group_indices = [idx]
+            queue = [idx]
+            while queue:
+                current = queue.pop()
+                current_bbox = chunks[current].get("bbox")
+                for other_idx in range(len(chunks)):
+                    if used[other_idx]:
+                        continue
+                    if overlaps(current_bbox, chunks[other_idx].get("bbox")):
+                        used[other_idx] = True
+                        queue.append(other_idx)
+                        group_indices.append(other_idx)
+            if len(group_indices) == 1:
+                merged.append(chunks[group_indices[0]])
+                continue
+            group_chunks = [chunks[i] for i in group_indices]
+            base_chunk = max(group_chunks, key=lambda c: area(c.get("bbox")))
+            merged_bbox = [
+                min(c["bbox"][0] for c in group_chunks),
+                min(c["bbox"][1] for c in group_chunks),
+                max(c["bbox"][2] for c in group_chunks),
+                max(c["bbox"][3] for c in group_chunks),
+            ]
+            combined = dict(base_chunk)
+            combined["bbox"] = merged_bbox
+            merged.append(combined)
+        return merged
+
     merged_layouts: List = []
     for layout in layout_results or []:
         chunks = getattr(layout, "chunks", None) or []
-        tables = []
-        for c in chunks:
-            if "table" in (c.get("label") or "").lower():
-                if images:
-                    page_idx = int(c.get("page_index", 0) or 0)
-                    if 0 <= page_idx < len(images):
-                        img = images[page_idx]
-                        bbox = c.get("bbox") or []
-                        if len(bbox) >= 4:
-                            x0, y0, x1, y1 = bbox[:4]
-                            left = max(0, int(x0))
-                            top = max(0, int(y0))
-                            right = min(img.width, int(x1))
-                            bottom = min(img.height, int(y1))
-                            if right > left and bottom > top:
-                                cropped = img.crop((left, top, right, bottom))
-                                draw = ImageDraw.Draw(cropped)
-                                for other in chunks:
-                                    if other is c:
-                                        continue
-                                    obbox = other.get("bbox") or []
-                                    if len(obbox) < 4:
-                                        continue
-                                    ox0, oy0, ox1, oy1 = obbox[:4]
-                                    ix0 = max(left, int(ox0))
-                                    iy0 = max(top, int(oy0))
-                                    ix1 = min(right, int(ox1))
-                                    iy1 = min(bottom, int(oy1))
-                                    if ix1 <= ix0 or iy1 <= iy0:
-                                        continue
-                                    draw.rectangle(
-                                        (
-                                            ix0 - left,
-                                            iy0 - top,
-                                            ix1 - left,
-                                            iy1 - top,
-                                        ),
-                                        fill="white",
-                                    )
-                                c["crop_image"] = cropped
-                tables.append(c)
-
-        non_tables = [c for c in chunks if "table" not in (c.get("label") or "").lower()]
-
-        visited = set()
-        grouped: List[List[dict[str, Any]]] = []
-        for idx, chunk in enumerate(non_tables):
-            if idx in visited:
+        table_chunks: list[dict[str, Any]] = []
+        other_chunks: list[dict[str, Any]] = []
+        for chunk in chunks:
+            bbox = chunk.get("bbox") or chunk.get("box") or chunk.get("page_box")
+            if not bbox or len(bbox) < 4:
                 continue
-            stack = [idx]
-            visited.add(idx)
-            component: List[dict[str, Any]] = []
-            while stack:
-                cur = stack.pop()
-                component.append(non_tables[cur])
-                for nbr, other in enumerate(non_tables):
-                    if nbr in visited:
-                        continue
-                    if overlaps(non_tables[cur].get("bbox"), other.get("bbox")):
-                        visited.add(nbr)
-                        stack.append(nbr)
-            grouped.append(component)
+            x0, y0, x1, y1 = map(float, bbox[:4])
+            normalized_chunk = dict(chunk)
+            normalized_chunk["bbox"] = [x0, y0, x1, y1]
+            if "table" in label_of(normalized_chunk):
+                table_chunks.append(normalized_chunk)
+            else:
+                other_chunks.append(normalized_chunk)
 
-        merged_chunks: List[dict[str, Any]] = []
-        for group in grouped:
-            if not group:
-                continue
-            valid_boxes = [g for g in group if g.get("bbox") and len(g["bbox"]) >= 4]
-            if not valid_boxes:
-                continue
-
-            def area(ch):
-                x0, y0, x1, y1 = ch["bbox"][:4]
-                return max(0.0, x1 - x0) * max(0.0, y1 - y0)
-
-            base_chunk = max(valid_boxes, key=area)
-            xs0, ys0, xs1, ys1 = zip(*(g["bbox"][:4] for g in valid_boxes))
-            merged_bbox = [min(xs0), min(ys0), max(xs1), max(ys1)]
-            merged_chunk = base_chunk.copy()
-            merged_chunk["bbox"] = merged_bbox
-            block_indices = [
-                b.get("block_index") for b in valid_boxes if b.get("block_index") is not None
-            ]
-            if block_indices:
-                merged_chunk["block_index"] = min(block_indices)
-            merged_chunk["page_index"] = base_chunk.get("page_index", 0)
-
-            if images:
-                page_idx = int(base_chunk.get("page_index", 0) or 0)
-                if 0 <= page_idx < len(images):
-                    img = images[page_idx]
-                    left = max(0, int(merged_bbox[0]))
-                    top = max(0, int(merged_bbox[1]))
-                    right = min(img.width, int(merged_bbox[2]))
-                    bottom = min(img.height, int(merged_bbox[3]))
-                    if right > left and bottom > top:
-                        canvas = Image.new(img.mode, (right - left, bottom - top), "white")
-                        for g in valid_boxes:
-                            gx0, gy0, gx1, gy1 = g["bbox"][:4]
-                            ix0 = max(left, int(gx0))
-                            iy0 = max(top, int(gy0))
-                            ix1 = min(right, int(gx1))
-                            iy1 = min(bottom, int(gy1))
-                            if ix1 <= ix0 or iy1 <= iy0:
-                                continue
-                            region = img.crop((ix0, iy0, ix1, iy1))
-                            canvas.paste(region, (ix0 - left, iy0 - top))
-                        merged_chunk["crop_image"] = canvas
-
-            merged_chunks.append(merged_chunk)
-
-        new_chunks = tables + merged_chunks
-        new_chunks.sort(key=lambda chunk: chunk.get("block_index", float("inf")))
-        layout.chunks = new_chunks
+        merged_tables = merge_chunks(table_chunks)
+        merged_non_tables = merge_chunks(other_chunks)
+        final_chunks = merged_tables + merged_non_tables
+        final_chunks.sort(key=lambda c: (c["bbox"][1], c["bbox"][0]))
+        layout.chunks = final_chunks
         merged_layouts.append(layout)
+
+    if images:
+        for page_idx, layout in enumerate(merged_layouts):
+            if page_idx >= len(images):
+                break
+            page_img = images[page_idx]
+            src_img = page_img if page_img.mode == "RGB" else page_img.convert("RGB")
+            page_chunks = getattr(layout, "chunks", None) or []
+            non_table_bboxes = [
+                chunk["bbox"]
+                for chunk in page_chunks
+                if "table" not in label_of(chunk)
+            ]
+            for chunk in page_chunks:
+                bbox = chunk.get("bbox")
+                if not bbox or len(bbox) < 4:
+                    chunk["crop_image"] = None
+                    continue
+                crop_box = tuple(int(round(v)) for v in bbox[:4])
+                crop_img = src_img.crop(crop_box)
+                if "table" in label_of(chunk) and non_table_bboxes:
+                    draw = None
+                    for nt_bbox in non_table_bboxes:
+                        inter_x0 = max(bbox[0], nt_bbox[0])
+                        inter_y0 = max(bbox[1], nt_bbox[1])
+                        inter_x1 = min(bbox[2], nt_bbox[2])
+                        inter_y1 = min(bbox[3], nt_bbox[3])
+                        if inter_x1 <= inter_x0 or inter_y1 <= inter_y0:
+                            continue
+                        if draw is None:
+                            draw = ImageDraw.Draw(crop_img)
+                        draw.rectangle(
+                            (
+                                inter_x0 - bbox[0],
+                                inter_y0 - bbox[1],
+                                inter_x1 - bbox[0],
+                                inter_y1 - bbox[1],
+                            ),
+                            fill="white",
+                        )
+                chunk["crop_image"] = crop_img
 
     return merged_layouts

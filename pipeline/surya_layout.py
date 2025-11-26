@@ -246,7 +246,7 @@ def analyze_layout_surya(
     page_info = getattr(rendered, "page_info", {}) or {}
 
     layout_results = _blocks_to_layouts(blocks, len(images), images, page_info)
-    layout_results = filter_non_text_chunks(layout_results)
+    # layout_results = filter_non_text_chunks(layout_results)
 
     if debug_dir:
         try:

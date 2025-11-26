@@ -11,7 +11,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/media/hdd01/PycharmProjects/ocr-challange/demo-data/2025-22-23.pdf"),
+        default=Path("/media/hdd01/PycharmProjects/ocr-challange2/demo-data/2025-22-23-2.pdf"),
         help=(
             "File or directory containing PDFs/images."
         ),

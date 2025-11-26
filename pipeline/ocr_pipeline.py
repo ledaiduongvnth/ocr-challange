@@ -59,7 +59,7 @@ def run_ocr_pipeline(
                 except Exception:
                     pass
 
-            is_table = "table" in label
+            is_table = "table" in label.lower()
             prompt = TABLE_ONLY_PROMPT if is_table else OCR_PROMPT
             component_items.append(
                 batch_input_cls(

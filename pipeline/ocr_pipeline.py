@@ -117,12 +117,8 @@ def run_ocr_pipeline(
                     target_chunks = getattr(target_layout, "chunks", None) or []
                     if chunk_idx < len(target_chunks):
                         target_chunk = target_chunks[chunk_idx]
-                        content_value = res.markdown or getattr(res, "raw", "") or ""
-                        if res.html and ("<table" in res.html or "</table>" in res.html):
-                            rendered = HTML_TEMPLATE.format(table_rows=res.html)
-                            target_chunk["content"] = rendered
-                        else:
-                            target_chunk["content"] = content_value
+                        content_value = getattr(res, "raw", "")
+                        target_chunk["content"] = content_value
 
     updated_pages: list[BatchOutputItem] = []
     for layout in layout_results:

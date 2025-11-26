@@ -57,8 +57,6 @@ Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 Guidelines:
 * Inline math: Surround math with <math>...</math> tags. Math expressions should be rendered in KaTeX-compatible LaTeX. Use display for block math.
 
-
-
 * Formatting: Maintain consistent formatting with the image, including spacing, indentation, list markers, subscripts/superscripts, and special characters.
 
 * Images: Include a description of any images in the alt attribute of an <img> tag. Do not fill out the src property.
@@ -107,6 +105,7 @@ OCR this image to HTML.
 """.strip()
 
 TABLE_ONLY_PROMPT = f"""
+Only use these tags {ALLOWED_TAGS}, and these attributes {ALLOWED_ATTRIBUTES}.
 You are given an image that contains only a table (or a single table region already cropped).
 Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers.
 
@@ -119,12 +118,17 @@ Requirements:
 - Keep numeric columns in their correct numeric columns; do not reorder. Use the header’s vertical guides to keep alignment.
 - Preserve signs, separators, and units exactly (e.g., parentheses for negatives, thousand separators, %, ₫).
 - Do not add boilerplate text or headings that are not visible.
-- If the header repeats in the crop, include it once at the top.
 - Reading order is top-to-bottom, left-to-right; preserve list markers/indentation as seen.
-- Do not intentionally shorten the table.
+- Keep the logical structure of the table as shown in the image, no additional or editing is allowed.
 
 {PROMPT_ENDING}
 """.strip()
+# TABLE_ONLY_PROMPT = f"""
+# You are given an image that contains only a table (or a single table region already cropped).
+# Return only the HTML for that table, nothing else. Do not wrap in extra <div> or layout markers
+
+# {PROMPT_ENDING}
+# """.strip()
 
 PROMPT_MAPPING = {
     "ocr_layout": OCR_LAYOUT_PROMPT,
@@ -151,3 +155,8 @@ PROMPT_MAPPING = {
 #   - Adjacent table segments:
 #     - If multiple table regions are vertically stacked with aligned columns and only a small gap between them (i.e., they are visually a continuation of the same table), treat them as a single logical <table> and merge them into one table instead of separate tables.
 #   - Avoid splitting one logical table into many smaller tables unless there is a clear visual separation.
+
+
+
+# 
+# - If the header repeats in the crop, include it once at the top.

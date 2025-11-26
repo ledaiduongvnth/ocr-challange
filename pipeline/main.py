@@ -40,11 +40,11 @@ def run():
     if not files:
         raise SystemExit(f"No supported files found under {args.input_path}")
 
-    if args.output_dir.exists():
-        try:
-            shutil.rmtree(args.output_dir)
-        except Exception as exc:
-            print(f"Could not clear output dir {args.output_dir} ({exc}); continuing.")
+    # if args.output_dir.exists():
+    #     try:
+    #         shutil.rmtree(args.output_dir)
+    #     except Exception as exc:
+    #         print(f"Could not clear output dir {args.output_dir} ({exc}); continuing.")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Running ({args.method}) on {len(files)} file(s)...")
 

@@ -22,7 +22,7 @@ def merge_overlapping_non_table_chunks(
         chunks = getattr(layout, "chunks", None) or []
         tables = []
         for c in chunks:
-            if (c.get("label") or "").lower() == "table":
+            if "table" in (c.get("label") or "").lower():
                 if images:
                     page_idx = int(c.get("page_index", 0) or 0)
                     if 0 <= page_idx < len(images):
@@ -62,7 +62,7 @@ def merge_overlapping_non_table_chunks(
                                 c["crop_image"] = cropped
                 tables.append(c)
 
-        non_tables = [c for c in chunks if (c.get("label") or "").lower() != "table"]
+        non_tables = [c for c in chunks if "table" not in (c.get("label") or "").lower()]
 
         visited = set()
         grouped: List[List[dict[str, Any]]] = []

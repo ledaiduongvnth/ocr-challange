@@ -59,7 +59,8 @@ def run_ocr_pipeline(
                 except Exception:
                     pass
 
-            prompt = TABLE_ONLY_PROMPT if label == "table" else OCR_PROMPT
+            is_table = "table" in label
+            prompt = TABLE_ONLY_PROMPT if is_table else OCR_PROMPT
             component_items.append(
                 batch_input_cls(
                     image=cropped,

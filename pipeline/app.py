@@ -4,6 +4,8 @@ FastAPI wrapper exposing the main OCR pipeline.
 
 from __future__ import annotations
 
+import os
+import sys
 import shutil
 import tempfile
 from pathlib import Path
@@ -18,12 +20,15 @@ from chandra.input import load_file
 from chandra.model import InferenceManager
 from chandra.model.schema import BatchInputItem
 from chandra.scripts.cli import get_supported_files, save_merged_output
-from chandra_layout_analysis import chandra_analyze_layout
-from cli_utils import apply_env_overrides, build_inference_options, determine_batch_size
+from cli_utils import (
+    apply_env_overrides,
+    build_inference_options,
+    determine_batch_size,
+    parse_cli_args,
+)
 from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
 from orientation import normalize_page_images
-from pp_doclayout import analyze_layout_pp_doclayout
 from pp_structure_postprocess import postprocess_with_ppstructure
 from pp_structure_preprocess import preprocess_with_ppstructure
 from surya_layout import analyze_layout_surya
@@ -32,28 +37,74 @@ from utils import log_component_bboxes
 app = FastAPI()
 
 
-def _build_args(input_path: Path, output_dir: Path) -> SimpleNamespace:
-    """Construct an argparse-like namespace with main.py defaults."""
+def _get_cli_defaults():
+    """Grab CLI defaults without requiring real argv."""
+    orig_argv = sys.argv
+    try:
+        sys.argv = [orig_argv[0] if orig_argv else "app"]
+        return parse_cli_args()
+    finally:
+        sys.argv = orig_argv
+
+
+_CLI_DEFAULTS = _get_cli_defaults()
+
+
+def _build_args(
+    input_path: Path,
+    output_dir: Path,
+    *,
+    checkpoint: str | None = None,
+    method: str | None = None,
+    page_range: str | None = None,
+    batch_size: int | None = None,
+    max_output_tokens: int | None = None,
+    max_workers: int | None = None,
+    max_retries: int | None = None,
+    include_images: bool | None = None,
+    include_headers_footers: bool | None = None,
+    html: bool | None = None,
+    paginate_output: bool | None = None,
+    device: str | None = None,
+    attn_impl: str | None = None,
+    layout_backend: str | None = None,
+    preprocess_backend: str | None = None,
+    postprocess_backend: str | None = None,
+    prompt: str | None = None,
+) -> SimpleNamespace:
+    """Construct an argparse-like namespace mirroring CLI defaults."""
     return SimpleNamespace(
         input_path=input_path,
         output_dir=output_dir,
-        checkpoint="datalab-to/chandra",
-        method="vllm",
-        page_range=None,
-        batch_size=8,
-        max_output_tokens=None,
-        max_workers=None,
-        max_retries=None,
-        include_images=True,
-        include_headers_footers=False,
-        html=True,
-        paginate_output=False,
-        device=None,
-        attn_impl=None,
-        layout_backend="surya",
-        preprocess_backend="ppstructure",
-        postprocess_backend="ppstructure",
-        prompt="default",
+        checkpoint=checkpoint if checkpoint is not None else _CLI_DEFAULTS.checkpoint,
+        method=method if method is not None else _CLI_DEFAULTS.method,
+        page_range=page_range,
+        batch_size=batch_size if batch_size is not None else _CLI_DEFAULTS.batch_size,
+        max_output_tokens=max_output_tokens,
+        max_workers=max_workers,
+        max_retries=max_retries,
+        include_images=include_images
+        if include_images is not None
+        else _CLI_DEFAULTS.include_images,
+        include_headers_footers=include_headers_footers
+        if include_headers_footers is not None
+        else _CLI_DEFAULTS.include_headers_footers,
+        html=html if html is not None else _CLI_DEFAULTS.html,
+        paginate_output=paginate_output
+        if paginate_output is not None
+        else _CLI_DEFAULTS.paginate_output,
+        device=device,
+        attn_impl=attn_impl,
+        layout_backend=layout_backend
+        if layout_backend is not None
+        else _CLI_DEFAULTS.layout_backend,
+        preprocess_backend=preprocess_backend
+        if preprocess_backend is not None
+        else _CLI_DEFAULTS.preprocess_backend,
+        postprocess_backend=postprocess_backend
+        if postprocess_backend is not None
+        else _CLI_DEFAULTS.postprocess_backend,
+        prompt=prompt if prompt is not None else _CLI_DEFAULTS.prompt,
     )
 
 
@@ -102,69 +153,28 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 debug_dir=debug_dir,
             )
 
-        layout_results: list = []
-        if args.layout_backend == "ppdoclayout":
-            _, layout_results = analyze_layout_pp_doclayout(
-                file_path=source_path,
-                images=page_images,
-                model_name="PP-DocLayout-L",
-                debug_dir=debug_dir,
-            )
-        elif args.layout_backend == "ppdoclayout_plus":
-            _, layout_results = analyze_layout_pp_doclayout(
-                file_path=source_path,
-                images=page_images,
-                model_name="PP-DocLayout_plus-L",
-                debug_dir=debug_dir,
-            )
-        elif args.layout_backend == "PicoDet_layout_1x_table":
-            _, layout_results = analyze_layout_pp_doclayout(
-                file_path=source_path,
-                images=page_images,
-                model_name="PicoDet_layout_1x_table",
-                debug_dir=debug_dir,
-            )
-        elif args.layout_backend == "surya":
-            _, layout_results = analyze_layout_surya(
-                file_path=source_path,
-                images=page_images,
-                debug_dir=debug_dir,
-            )
-        else:
-            _, layout_results = chandra_analyze_layout(
-                file_path=source_path,
-                images=page_images,
-                infer_fn=lambda items: inference.generate(items, **generate_kwargs),
-                prompt=None,
-                batch_size=batch_size,
-                debug_dir=debug_dir,
-            )
+        _, layout_results = analyze_layout_surya(
+            file_path=source_path,
+            images=page_images,
+            debug_dir=debug_dir,
+        )
 
         log_component_bboxes(file_path.name, layout_results)
 
         if args.postprocess_backend == "ppstructure":
             layout_results = postprocess_with_ppstructure(layout_results, images=page_images)
 
-        page_outputs = (
-            build_native_outputs(
-                file_path,
-                layout_results=layout_results,
-                layout_images=page_images,
-                debug_dir=debug_dir,
-            )
-            if is_native_pdf
-            else run_ocr_pipeline(
-                file_path=file_path,
-                args=args,
-                inference=inference,
-                generate_kwargs=generate_kwargs,
-                base_prompt=args.prompt,
-                batch_size=batch_size,
-                batch_input_cls=BatchInputItem,
-                images=page_images,
-                layout_results=layout_results,
-                debug_dir=debug_dir,
-            )
+        page_outputs = run_ocr_pipeline(
+            file_path=file_path,
+            args=args,
+            inference=inference,
+            generate_kwargs=generate_kwargs,
+            base_prompt=args.prompt,
+            batch_size=batch_size,
+            batch_input_cls=BatchInputItem,
+            images=page_images,
+            layout_results=layout_results,
+            debug_dir=debug_dir,
         )
 
         merged_md = []
@@ -216,11 +226,15 @@ async def parse_document(file: UploadFile = File(...)):
         tmp.write(await file.read())
         tmp_path = Path(tmp.name)
 
-    output_dir = Path(tempfile.mkdtemp())
+    output_root = Path(tempfile.mkdtemp())
     try:
-        args = _build_args(input_path=tmp_path, output_dir=output_dir)
+        args = _build_args(
+            input_path=tmp_path,
+            output_dir=output_root,
+        )
         result_payload = _process_file(tmp_path, args)
-        return {"status": "success", "data": result_payload}
+        markdown_content = result_payload.get("markdown", "") if isinstance(result_payload, dict) else ""
+        return {"status": "success", "markdown": markdown_content}
     except Exception as exc:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(exc)})
     finally:
@@ -228,7 +242,7 @@ async def parse_document(file: UploadFile = File(...)):
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
-        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(output_root, ignore_errors=True)
 
 
 @app.get("/health")

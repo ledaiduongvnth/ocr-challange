@@ -6,6 +6,7 @@ from typing import List
 from chandra.model.schema import BatchInputItem, BatchOutputItem
 from utils import HTML_TEMPLATE
 from hoang_prompt import OCR_PROMPT, TABLE_ONLY_PROMPT
+import time
 
 def run_ocr_pipeline(
     file_path: Path,
@@ -84,14 +85,9 @@ def run_ocr_pipeline(
                     target_chunks = getattr(target_layout, "chunks", None) or []
                     if chunk_idx < len(target_chunks):
                         target_chunk = target_chunks[chunk_idx]
-                        target_chunk["markdown"] = res.markdown or getattr(res, "raw", "") or ""
-                        target_chunk["html"] = res.html or getattr(res, "raw", "") or ""
-
-                        # print(res.html)
-                        # print("----------")
-                        # # print(res.markdown)
-                        # print(getattr(res, "raw", ""))
-                        # print("--------------------------------")
+                        target_chunk["markdown"] = getattr(res, "raw", "")
+                        target_chunk["html"] = getattr(res, "raw", "")
+                        time.sleep(0.2) 
 
 
     updated_pages: list[BatchOutputItem] = []

@@ -82,9 +82,9 @@ def run():
                 rgb_img = img.convert("RGB")
                 # Downscale to fit within roughly A4 at ~150dpi to reduce memory footprint.
                 # ######################################################
-                a4_target = (1240, 1754)
-                resample = getattr(Image, "Resampling", Image).LANCZOS
-                rgb_img.thumbnail(a4_target, resample)
+                # a4_target = (1240, 1754)
+                # resample = getattr(Image, "Resampling", Image).LANCZOS
+                # rgb_img.thumbnail(a4_target, resample)
                 # #######################################################
                 tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
                 os.close(tmp_handle)

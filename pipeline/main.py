@@ -125,7 +125,7 @@ def run():
                 batch_size=batch_size,
                 debug_dir=debug_layout_dir,
             )
-        layout_results = filter_non_text_chunks(layout_results)
+        # layout_results = filter_non_text_chunks(layout_results)
         log_component_bboxes(file_path.name, layout_results)
 
         if args.postprocess_backend == "ppstructure":

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Iterable, List, Optional, Sequence, Set, Tuple
+from pathlib import Path
+from typing import Iterable, List, Optional, Tuple
 
-import cv2
-import numpy as np
 from PIL import Image
 
 _PADDLE_ORIENTATION_MODEL = None
@@ -30,28 +29,6 @@ def _load_paddle_orientation_model():
             print(f"     Paddle orientation classifier unavailable: {exc}")
             return None
     return _PADDLE_ORIENTATION_MODEL
-
-
-def _compute_projection_metrics(image: Image.Image) -> Tuple[float, float, float, float]:
-    """Return (horizontal_variance, vertical_variance, top-bottom balance, left-right balance)."""
-    arr = np.array(image.convert("L"))
-    if arr.size == 0:
-        return 0.0, 0.0, 0.0, 0.0
-    arr = cv2.GaussianBlur(arr, (5, 5), 0)
-    _, thresh = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    ink = 255 - thresh  # make text areas high-valued
-    horiz = ink.sum(axis=1).astype(np.float64)
-    vert = ink.sum(axis=0).astype(np.float64)
-    height, width = ink.shape
-    horiz_var = float(np.var(horiz) / (height * height + 1e-6))
-    vert_var = float(np.var(vert) / (width * width + 1e-6))
-    band = max(1, height // 4)
-    top = float(horiz[:band].sum())
-    bottom = float(horiz[-band:].sum())
-    side_band = max(1, width // 4)
-    left = float(vert[:side_band].sum())
-    right = float(vert[-side_band:].sum())
-    return horiz_var, vert_var, top - bottom, left - right
 
 
 def _extract_angle_from_result(res) -> Optional[int]:
@@ -102,45 +79,28 @@ def detect_paddle_orientation(image: Image.Image) -> Optional[int]:
     return angle
 
 
-def _select_best_rotation(
-    image: Image.Image, angles: Sequence[int], preferred: Set[int]
-) -> Tuple[Image.Image, int]:
-    best_angle = 0
-    best_image = image
-    best_key = (-float("inf"), -float("inf"), -float("inf"), -float("inf"), -float("inf"))
-    seen = set()
-    for angle in angles:
-        normalized = int(angle) % 360
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        rotated = image if normalized == 0 else image.rotate(normalized, expand=True)
-        horiz_var, vert_var, top_bottom, left_right = _compute_projection_metrics(rotated)
-        alignment_score = horiz_var - vert_var
-        rotation_penalty = -abs(normalized if normalized <= 180 else 360 - normalized)
-        key = (
-            alignment_score,
-            1 if normalized in preferred else 0,
-            left_right,
-            top_bottom,
-            rotation_penalty,
-        )
-        if key > best_key:
-            best_key = key
-            best_angle = normalized
-            best_image = rotated
-    return best_image, best_angle
+def _describe_orientation(angle: int) -> str:
+    normalized = angle % 360
+    descriptions = {
+        0: "upright (0°)",
+        90: "rotated 90° CCW",
+        180: "upside down (180°)",
+        270: "rotated 90° CW",
+    }
+    return descriptions.get(normalized, f"rotated {normalized}°")
 
 
 def normalize_image_orientation(image: Image.Image) -> Tuple[Image.Image, int]:
     """Rotate the image (0/90/180/270 CCW) so that text lines run horizontally."""
     paddle_angle = detect_paddle_orientation(image)
-    if paddle_angle is not None:
-        normalized = paddle_angle % 360
-        print(f"     Paddle doc orientation angle: {normalized}°")
-        rotated = image if normalized == 0 else image.rotate(normalized, expand=True)
-        return rotated, normalized
-    return _select_best_rotation(image, (0, 90, 180, 270), set())
+    if paddle_angle is None:
+        print("     Paddle doc orientation unavailable; returning original image.")
+        return image, 0
+    normalized = paddle_angle % 360
+    orientation_desc = _describe_orientation(normalized)
+    print(f"     Paddle doc orientation angle: {normalized}° -> {orientation_desc}")
+    rotated = image if normalized == 0 else image.rotate(normalized, expand=True)
+    return rotated, normalized
 
 
 def normalize_page_images(
@@ -153,10 +113,13 @@ def normalize_page_images(
         save_dir.mkdir(parents=True, exist_ok=True)
     for idx, image in enumerate(images, 1):
         fixed, angle = normalize_image_orientation(image)
+        orientation_desc = _describe_orientation(angle)
         if angle:
-            print(f"     page {idx}: rotated {angle}° CCW to fix orientation")
+            print(
+                f"     page {idx}: {orientation_desc}; rotated {angle}° CCW to fix orientation"
+            )
         else:
-            print(f"     page {idx}: orientation OK")
+            print(f"     page {idx}: {orientation_desc}; orientation OK")
         if save_dir:
             out_path = save_dir / f"{prefix}_{idx:03d}.png"
             fixed.save(out_path)

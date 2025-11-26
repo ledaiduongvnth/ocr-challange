@@ -16,6 +16,7 @@ from cli_utils import (
 )
 from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
+from orientation import normalize_page_images
 from chandra_layout_analysis import chandra_analyze_layout
 from pp_doclayout import analyze_layout_pp_doclayout
 from pp_structure_preprocess import preprocess_with_ppstructure
@@ -72,6 +73,18 @@ def run():
         load_config = {"page_range": args.page_range} if args.page_range else {}
         page_images = load_file(str(file_path), load_config)
         print(f"  [layout] loaded {len(page_images)} page(s)")
+        if page_images:
+            print("  [orientation] normalizing page rotations via PaddleOCR")
+            orientation_debug_dir = (
+                file_output_root / "orientation" if args.html else None
+            )
+            page_images = normalize_page_images(
+                page_images,
+                save_dir=orientation_debug_dir,
+                prefix="page",
+            )
+        else:
+            print("  [orientation] no pages to normalize")
         debug_layout_dir = file_output_root if args.html else None
         debug_ocr_dir = file_output_root if args.html else None
         debug_native_dir = debug_ocr_dir

@@ -198,7 +198,7 @@ def run():
                 for chunk in chunks:
                     markdown = chunk.get("markdown") or ""
                     if "logo" in markdown.lower():
-                        markdown = re.sub(r'<img[^>]*logo[^>]*?>', '', markdown, flags=re.IGNORECASE)
+                        content = re.sub(r'<img[^>]*?>', '', content, flags=re.IGNORECASE)
                     # if "math" in content.lower():
                     #     content = re.sub(r'<math.*?</math>', '', content, flags=re.IGNORECASE | re.DOTALL)
                     if not markdown.strip():

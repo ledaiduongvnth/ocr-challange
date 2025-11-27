@@ -30,7 +30,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--method",
         choices=("hf", "vllm"),
-        default="vllm",
+        default="hf",
         help="Inference backend. Use 'hf' for local GPU, 'vllm' for server.",
     )
     parser.add_argument(

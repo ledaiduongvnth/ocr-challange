@@ -16,6 +16,12 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 
+# Default remote inference endpoint if not provided via environment.
+os.environ.setdefault("VLLM_API_BASE", "")
+os.environ.setdefault("HUGGINGFACE_HUB_TOKEN", "")
+os.environ.setdefault("VLLM_API_KEY", "")
+
+
 from chandra.input import load_file
 from chandra.model import InferenceManager
 from chandra.model.schema import BatchInputItem
@@ -228,16 +234,58 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 layout.page_box = []
         #################################################################################
 
-        merged_md = []
-        merged_html = []
+        all_markdown: list[str] = []
+        all_html: list[str] = []
+        page_entries: list[dict[str, Any]] = []
+        total_tokens = 0
+        total_chunks = 0
+
         for idx, page_res in enumerate(page_outputs or [], 1):
-            merged_md.append(getattr(page_res, "markdown", "") or "")
-            merged_html.append(getattr(page_res, "html", "") or "")
-            results_payload["pages"].append(
+            chunks = getattr(page_res, "chunks", None) or []
+            token_count = getattr(page_res, "token_count", 0) or 0
+            page_box = getattr(page_res, "page_box", []) or []
+
+            page_md_blocks: list[str] = []
+            page_html_blocks: list[str] = []
+            for chunk in chunks:
+                md_chunk = (chunk.get("markdown") or "").strip()
+                html_chunk = (chunk.get("html") or "").strip()
+                if md_chunk and "logo" in md_chunk.lower():
+                    md_chunk = re.sub(r"<img[^>]*?>", "", md_chunk, flags=re.IGNORECASE)
+                if md_chunk:
+                    page_md_blocks.append(md_chunk)
+
+                html_source = html_chunk or md_chunk
+                if html_source:
+                    if any(tag in html_source.lower() for tag in ["<table", "<p", "<html"]):
+                        page_html_blocks.append(html_source)
+                    else:
+                        page_html_blocks.append(f"<p>{html_source}</p>")
+
+            page_markdown = "\n\n".join(page_md_blocks) if page_md_blocks else ""
+            page_html = (
+                f"<html><body>{''.join(page_html_blocks)}</body></html>"
+                if page_html_blocks
+                else ""
+            )
+
+            # Keep the page result objects in sync for downstream save_merged_output.
+            page_res.markdown = page_markdown
+            page_res.html = page_html
+
+            all_markdown.append(page_markdown)
+            all_html.append(page_html)
+            total_tokens += token_count
+            total_chunks += len(chunks)
+
+            page_entries.append(
                 {
                     "page": idx,
-                    "markdown": getattr(page_res, "markdown", "") or "",
-                    "html": getattr(page_res, "html", "") or "",
+                    "markdown": page_markdown,
+                    "html": page_html,
+                    "page_box": page_box,
+                    "token_count": token_count,
+                    "num_chunks": len(chunks),
                 }
             )
 
@@ -261,8 +309,26 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
             except Exception:
                 pass
 
-        results_payload["markdown"] = "\n\n".join(md for md in merged_md if md)
-        results_payload["html"] = "".join(h for h in merged_html if h)
+        results_payload["pages"].extend(page_entries)
+        results_payload["markdown"] = "".join(all_markdown)
+        results_payload["html"] = "".join(all_html)
+        results_payload["file_name"] = file_path.name
+        results_payload["num_pages"] = len(page_outputs or [])
+        results_payload["total_token_count"] = total_tokens
+        results_payload["total_chunks"] = total_chunks
+        # Save merged markdown/html for debugging.
+        try:
+            file_output_root.mkdir(parents=True, exist_ok=True)
+            if results_payload["markdown"]:
+                (file_output_root / f"{file_path.stem}_api.md").write_text(
+                    results_payload["markdown"], encoding="utf-8"
+                )
+            if results_payload["html"]:
+                (file_output_root / f"{file_path.stem}_api.html").write_text(
+                    results_payload["html"], encoding="utf-8"
+                )
+        except Exception:
+            pass
 
     return results_payload
 
@@ -278,10 +344,11 @@ async def parse_document(file: UploadFile = File(...)):
         tmp_path = Path(tmp.name)
 
     output_root = Path(tempfile.mkdtemp())
+    save_root = Path("./output")
     try:
         args = _build_args(
             input_path=tmp_path,
-            output_dir=output_root,
+            output_dir=save_root,
         )
         result_payload = _process_file(tmp_path, args)
         markdown_content = result_payload.get("markdown", "") if isinstance(result_payload, dict) else ""

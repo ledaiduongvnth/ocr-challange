@@ -10,6 +10,9 @@ from block_union import merge_overlapping_non_table_chunks
 
 
 def _load_marker_converter():
+    global _MARKER_CONVERTER
+    if _MARKER_CONVERTER is not None:
+        return _MARKER_CONVERTER
     try:
         from marker.config.parser import ConfigParser
         from marker.models import create_model_dict
@@ -31,7 +34,11 @@ def _load_marker_converter():
         renderer=parser.get_renderer(),
         llm_service=parser.get_llm_service(),
     )
+    _MARKER_CONVERTER = converter
     return converter
+
+
+_MARKER_CONVERTER = None
 
 
 def _blocks_to_layouts(

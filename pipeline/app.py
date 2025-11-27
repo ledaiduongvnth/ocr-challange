@@ -48,6 +48,7 @@ def _get_cli_defaults():
 
 
 _CLI_DEFAULTS = _get_cli_defaults()
+_INFERENCE_CACHE: dict[str, InferenceManager] = {}
 
 
 def _build_args(
@@ -116,7 +117,10 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    inference = InferenceManager(method=args.method)
+    inference = _INFERENCE_CACHE.get(args.method)
+    if inference is None:
+        inference = InferenceManager(method=args.method)
+        _INFERENCE_CACHE[args.method] = inference
     batch_size = determine_batch_size(args)
     generate_kwargs = build_inference_options(args)
     results_payload: dict[str, Any] = {"pages": []}
@@ -253,5 +257,5 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)

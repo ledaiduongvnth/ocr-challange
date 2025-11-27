@@ -3,7 +3,7 @@ FastAPI wrapper exposing the main OCR pipeline.
 """
 
 from __future__ import annotations
-
+import re
 import os
 import sys
 import shutil
@@ -196,6 +196,37 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
             layout_results=layout_results,
             debug_dir=debug_dir,
         )
+
+        if page_outputs:
+            for layout in page_outputs:
+                chunks = getattr(layout, "chunks", None) or []
+                markdown_blocks = []
+                html_blocks = []
+                for chunk in chunks:
+                    markdown = chunk.get("markdown") or ""
+                    if "logo" in markdown.lower():
+                        markdown = re.sub(r'<img[^>]*logo[^>]*?>', '', markdown, flags=re.IGNORECASE)
+                    # if "math" in content.lower():
+                    #     content = re.sub(r'<math.*?</math>', '', content, flags=re.IGNORECASE | re.DOTALL)
+                    if not markdown.strip():
+                        continue
+                    
+                    html = markdown
+                    if markdown:
+                        markdown_blocks.append(str(markdown))
+                    if html:
+                        if "<table" in html or "<p" in html or "<html" in html:
+                            html_blocks.append(html)
+                        else:
+                            html_blocks.append(f"<p>{html}</p>")
+                layout.markdown = "\n\n".join(markdown_blocks) if markdown_blocks else ""
+                layout.html = (
+                    f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""
+                )
+                layout.token_count = 0
+                layout.images = {}
+                layout.page_box = []
+        #################################################################################
 
         merged_md = []
         merged_html = []

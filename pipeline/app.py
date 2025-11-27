@@ -31,7 +31,7 @@ from ocr_pipeline import run_ocr_pipeline
 from orientation import normalize_page_images
 from pp_structure_postprocess import postprocess_with_ppstructure
 from pp_structure_preprocess import preprocess_with_ppstructure
-from surya_layout import analyze_layout_surya
+from surya_layout import analyze_layout_surya, _load_marker_converter
 from utils import log_component_bboxes
 
 app = FastAPI()
@@ -49,6 +49,22 @@ def _get_cli_defaults():
 
 _CLI_DEFAULTS = _get_cli_defaults()
 _INFERENCE_CACHE: dict[str, InferenceManager] = {}
+
+
+@app.on_event("startup")
+def _preload_models() -> None:
+    """Warm up heavy models at startup to avoid first-request latency."""
+    try:
+        default_method = _CLI_DEFAULTS.method
+        if default_method and default_method not in _INFERENCE_CACHE:
+            _INFERENCE_CACHE[default_method] = InferenceManager(method=default_method)
+    except Exception as exc:
+        print(f"[startup] failed to preload InferenceManager: {exc}")
+
+    try:
+        _load_marker_converter()
+    except Exception as exc:
+        print(f"[startup] failed to preload marker converter: {exc}")
 
 
 def _build_args(

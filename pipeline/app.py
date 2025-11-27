@@ -205,7 +205,7 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 for chunk in chunks:
                     markdown = chunk.get("markdown") or ""
                     if "logo" in markdown.lower():
-                        markdown = re.sub(r'<img[^>]*logo[^>]*?>', '', markdown, flags=re.IGNORECASE)
+                        markdown = re.sub(r'<img[^>]*?>', '', markdown, flags=re.IGNORECASE)
                     # if "math" in content.lower():
                     #     content = re.sub(r'<math.*?</math>', '', content, flags=re.IGNORECASE | re.DOTALL)
                     if not markdown.strip():

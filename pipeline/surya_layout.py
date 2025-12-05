@@ -6,9 +6,13 @@ from typing import Any, List, Sequence, Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 from utils import filter_non_text_chunks, log_component_bboxes
+from block_union import merge_overlapping_non_table_chunks
 
 
 def _load_marker_converter():
+    global _MARKER_CONVERTER
+    if _MARKER_CONVERTER is not None:
+        return _MARKER_CONVERTER
     try:
         from marker.config.parser import ConfigParser
         from marker.models import create_model_dict
@@ -30,7 +34,11 @@ def _load_marker_converter():
         renderer=parser.get_renderer(),
         llm_service=parser.get_llm_service(),
     )
+    _MARKER_CONVERTER = converter
     return converter
+
+
+_MARKER_CONVERTER = None
 
 
 def _blocks_to_layouts(
@@ -114,7 +122,7 @@ def analyze_layout_surya(
     page_info = getattr(rendered, "page_info", {}) or {}
 
     layout_results = _blocks_to_layouts(blocks, len(images), images, page_info)
-    layout_results = filter_non_text_chunks(layout_results)
+    # layout_results = filter_non_text_chunks(layout_results)
 
     if debug_dir:
         try:
@@ -141,5 +149,19 @@ def analyze_layout_surya(
             out_path = page_dir / f"{file_path.stem}_marker_layout.png"
             annotated.save(out_path)
             print(f"     [marker] saved debug image -> {out_path}")
+    
+    layout_results = merge_overlapping_non_table_chunks(layout_results, images)
 
+    if debug_dir:
+        for page_idx, (img, layout) in enumerate(zip(images, layout_results), 1):
+            for chunk in getattr(layout, "chunks", None) or []:
+                label = chunk.get("label") or "unknown"
+                block_idx = chunk.get("block_index")
+                crop_img = chunk.get("crop_image")
+                if crop_img is not None:
+                    crop_dir = debug_dir / f"{page_idx:03d}" / "debug_crops"
+                    crop_dir.mkdir(parents=True, exist_ok=True)
+                    crop_name = f"{file_path.stem}_block{block_idx if block_idx is not None else 'na'}_{label}.png"
+                    crop_path = crop_dir / crop_name
+                    crop_img.save(crop_path)
     return list(images), layout_results

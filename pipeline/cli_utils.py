@@ -83,7 +83,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--paginate-output",
         action="store_true",
-        default=True,
+        default=False,
         help="Insert page separators into markdown/html.",
     )
     parser.add_argument(
@@ -121,7 +121,7 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--postprocess-backend",
         choices=("none", "ppstructure"),
-        default="None",
+        default="ppstructure",
         help="Optional postprocessing after layout detection: 'ppstructure' applies a simple reading-order pass.",
     )
     parser.add_argument(

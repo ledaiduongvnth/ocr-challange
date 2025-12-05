@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 
 # Default remote inference endpoint if not provided via environment.
-os.environ.setdefault("VLLM_API_BASE", "")
+os.environ.setdefault("VLLM_API_BASE", "https://uav-vts-chandra.hf.space/v1")
 os.environ.setdefault("HUGGINGFACE_HUB_TOKEN", "")
 os.environ.setdefault("VLLM_API_KEY", "")
 
@@ -157,6 +157,7 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
 
         load_config = {"page_range": args.page_range} if args.page_range else {}
         temp_pdf_path: Path | None = None
+        layout_pdf_path: Path | None = None
         source_path = file_path
         if not is_pdf:
             with Image.open(file_path) as img:
@@ -178,9 +179,20 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 use_unwarp=True,
                 debug_dir=debug_dir,
             )
+        layout_source_path = source_path
+        if page_images:
+            try:
+                pdf_pages = [img if img.mode == "RGB" else img.convert("RGB") for img in page_images]
+                tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
+                os.close(tmp_handle)
+                layout_pdf_path = Path(tmp_name)
+                pdf_pages[0].save(layout_pdf_path, save_all=True, append_images=pdf_pages[1:])
+                layout_source_path = layout_pdf_path
+            except Exception:
+                layout_pdf_path = None
 
         _, layout_results = analyze_layout_surya(
-            file_path=source_path,
+            file_path=layout_source_path,
             images=page_images,
             debug_dir=debug_dir,
         )
@@ -303,6 +315,11 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 temp_pdf_path.unlink()
             except Exception:
                 pass
+        if layout_pdf_path and layout_pdf_path.exists():
+            try:
+                layout_pdf_path.unlink()
+            except Exception:
+                pass
         for img in page_images or []:
             try:
                 img.close()
@@ -372,4 +389,4 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, timeout_keep_alive=900)

@@ -111,7 +111,7 @@ def build_native_outputs(
                     markdown_text = extracted_text
                     html_text = extracted_text
 
-                    if label == "table":
+                    if "table" in label:
                         try:
                             table_cells = []
                             tables = cropped_page.find_tables()
@@ -156,30 +156,32 @@ def build_native_outputs(
                         except Exception:
                             pass
 
-                    chunk["content"] = html_text if label == "table" else markdown_text
+                    chunk["markdown"] = markdown_text
+                    chunk["html"] = html_text
 
         rebuilt_pages: list = []
         for layout in layout_results:
             chunks = getattr(layout, "chunks", None) or []
-            lines: list[str] = []
+            markdown_blocks: list[str] = []
             html_blocks: list[str] = []
             for chunk in chunks:
-                content = (
-                    chunk.get("content")
-                    or chunk.get("text")
-                    or chunk.get("markdown")
-                    or ""
-                )
-                if content:
-                    lines.append(str(content))
-                    if "<table" in content or "<p" in content or "<html" in content:
-                        html_blocks.append(content)
+                md = (chunk.get("markdown") or "").strip()
+                html = (chunk.get("html") or "").strip()
+                if md:
+                    markdown_blocks.append(md)
+                html_source = html or md
+                if html_source:
+                    if any(tag in html_source.lower() for tag in ["<table", "<p", "<html"]):
+                        html_blocks.append(html_source)
                     else:
-                        html_blocks.append(f"<p>{content}</p>")
-            layout.markdown = "\n\n".join(lines) if lines else ""
+                        html_blocks.append(f"<p>{html_source}</p>")
+            layout.markdown = "\n\n".join(markdown_blocks) if markdown_blocks else ""
             layout.html = (
                 f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""
             )
+            layout.token_count = 0
+            layout.images = {}
+            layout.page_box = []
             rebuilt_pages.append(layout)
 
         if debug_dir:
@@ -188,12 +190,7 @@ def build_native_outputs(
                 dbg_chunks = getattr(dbg_layout, "chunks", None) or []
                 print(f"  page {dbg_idx} (idx={dbg_idx-1}) -> {len(dbg_chunks)} chunks")
                 for dbg_cidx, dbg_chunk in enumerate(dbg_chunks, 1):
-                    dbg_content = (
-                        dbg_chunk.get("content")
-                        or dbg_chunk.get("text")
-                        or dbg_chunk.get("markdown")
-                        or ""
-                    )
+                    dbg_content = dbg_chunk.get("markdown") or ""
                     print(f"    chunk {dbg_cidx}: {dbg_content}")
 
         return rebuilt_pages

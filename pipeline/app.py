@@ -41,6 +41,7 @@ from surya_layout import analyze_layout_surya, _load_marker_converter
 from utils import log_component_bboxes
 
 app = FastAPI()
+DATE_PREFIX_REGEX = re.compile(r"ngày[\s_]*tháng[\s_]*năm", re.IGNORECASE)
 
 
 def _get_cli_defaults():
@@ -94,6 +95,7 @@ def _build_args(
     preprocess_backend: str | None = None,
     postprocess_backend: str | None = None,
     prompt: str | None = None,
+    native_pdf: bool | None = None,
 ) -> SimpleNamespace:
     """Construct an argparse-like namespace mirroring CLI defaults."""
     return SimpleNamespace(
@@ -128,6 +130,7 @@ def _build_args(
         if postprocess_backend is not None
         else _CLI_DEFAULTS.postprocess_backend,
         prompt=prompt if prompt is not None else _CLI_DEFAULTS.prompt,
+        native_pdf=native_pdf if native_pdf is not None else getattr(_CLI_DEFAULTS, "native_pdf", False),
     )
 
 
@@ -149,7 +152,7 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
 
     for file_path in files:
         is_pdf = file_path.suffix.lower() == ".pdf"
-        is_native_pdf = is_pdf and is_digital_pdf(file_path)
+        is_native_pdf = bool(getattr(args, "native_pdf", False)) and is_pdf and is_digital_pdf(file_path)
 
         file_output_root = args.output_dir / file_path.stem
         results_dir = file_output_root / "results"
@@ -180,16 +183,16 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 debug_dir=debug_dir,
             )
         layout_source_path = source_path
-        if page_images:
-            try:
-                pdf_pages = [img if img.mode == "RGB" else img.convert("RGB") for img in page_images]
-                tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
-                os.close(tmp_handle)
-                layout_pdf_path = Path(tmp_name)
-                pdf_pages[0].save(layout_pdf_path, save_all=True, append_images=pdf_pages[1:])
-                layout_source_path = layout_pdf_path
-            except Exception:
-                layout_pdf_path = None
+        # if page_images:
+        #     try:
+        #         pdf_pages = [img if img.mode == "RGB" else img.convert("RGB") for img in page_images]
+        #         tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
+        #         os.close(tmp_handle)
+        #         layout_pdf_path = Path(tmp_name)
+        #         pdf_pages[0].save(layout_pdf_path, save_all=True, append_images=pdf_pages[1:])
+        #         layout_source_path = layout_pdf_path
+        #     except Exception:
+        #         layout_pdf_path = None
 
         _, layout_results = analyze_layout_surya(
             file_path=layout_source_path,
@@ -202,18 +205,29 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
         if args.postprocess_backend == "ppstructure":
             layout_results = postprocess_with_ppstructure(layout_results, images=page_images)
 
-        page_outputs = run_ocr_pipeline(
-            file_path=file_path,
-            args=args,
-            inference=inference,
-            generate_kwargs=generate_kwargs,
-            base_prompt=args.prompt,
-            batch_size=batch_size,
-            batch_input_cls=BatchInputItem,
-            images=page_images,
-            layout_results=layout_results,
-            debug_dir=debug_dir,
-        )
+        match (is_native_pdf,):
+            case (True,):
+                print("Doing native pdf processing")
+                page_outputs = build_native_outputs(
+                    file_path,
+                    layout_results=layout_results,
+                    layout_images=page_images,
+                    debug_dir=debug_dir,
+                )
+            case _:
+                print("Doing scan pdf processing")
+                page_outputs = run_ocr_pipeline(
+                    file_path=file_path,
+                    args=args,
+                    inference=inference,
+                    generate_kwargs=generate_kwargs,
+                    base_prompt=args.prompt,
+                    batch_size=batch_size,
+                    batch_input_cls=BatchInputItem,
+                    images=page_images,
+                    layout_results=layout_results,
+                    debug_dir=debug_dir,
+                )
 
         if page_outputs:
             for layout in page_outputs:
@@ -222,6 +236,44 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
                 html_blocks = []
                 for chunk in chunks:
                     markdown = chunk.get("markdown") or ""
+                    label = (chunk.get("label") or chunk.get("type") or "").lower()
+                    crop_image = chunk.get("crop_image")
+                    if (
+                        is_native_pdf
+                        and crop_image is not None
+                        and DATE_PREFIX_REGEX.search(markdown)
+                        and "table" not in label
+                    ):
+                        try:
+                            single_layout = type("LayoutResult", (object,), {"chunks": []})()
+                            new_chunk = dict(chunk)
+                            new_chunk["markdown"] = ""
+                            new_chunk["html"] = ""
+                            single_layout.chunks = [new_chunk]
+                            ocr_pages = run_ocr_pipeline(
+                                file_path=file_path,
+                                args=args,
+                                inference=inference,
+                                generate_kwargs=generate_kwargs,
+                                base_prompt=args.prompt,
+                                batch_size=batch_size,
+                                batch_input_cls=BatchInputItem,
+                                images=[crop_image],
+                                layout_results=[single_layout],
+                                debug_dir=debug_dir,
+                            )
+                            ocr_chunks: list = []
+                            if ocr_pages:
+                                ocr_chunks = getattr(ocr_pages[0], "chunks", None) or []
+                            if ocr_chunks:
+                                ocr_markdown = ocr_chunks[0].get("markdown") or ""
+                                ocr_html = ocr_chunks[0].get("html") or ocr_markdown
+                                if ocr_markdown:
+                                    markdown = ocr_markdown
+                                    chunk["markdown"] = ocr_markdown
+                                    chunk["html"] = ocr_html
+                        except Exception:
+                            pass
                     if "logo" in markdown.lower():
                         markdown = re.sub(r'<img[^>]*?>', '', markdown, flags=re.IGNORECASE)
                     # if "math" in content.lower():

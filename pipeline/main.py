@@ -59,7 +59,7 @@ def run():
     for idx, file_path in enumerate(files, 1):
         print(f"[{idx}/{len(files)}] {file_path.name}")
         is_pdf = file_path.suffix.lower() == ".pdf"
-        is_native_pdf = is_pdf and is_digital_pdf(file_path)
+        is_native_pdf = bool(args.native_pdf) and is_pdf and is_digital_pdf(file_path)
         if is_pdf:
             print(f"  PDF type: {'native' if is_native_pdf else 'scanned'}")
         else:
@@ -167,7 +167,6 @@ def run():
                 layout_results, images=page_images
             )
 
-        is_native_pdf = False
         match (is_native_pdf,):
             case (True,):
                 page_outputs = build_native_outputs(

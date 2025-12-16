@@ -11,7 +11,7 @@ def parse_cli_args() -> argparse.Namespace:
         "input_path",
         type=Path,
         nargs="?",
-        default=Path("/media/hdd01/PycharmProjects/ocr-challange/demo-data/2025-22-23.pdf"),
+        default=Path("/media/hdd01/PycharmProjects/ocr-challange/demo-data/native.pdf"),
         help=(
             "File or directory containing PDFs/images."
         ),
@@ -129,6 +129,12 @@ def parse_cli_args() -> argparse.Namespace:
         choices=("default", "custom"),
         default="default",
         help="Prompt type for chandra"
+    )
+    parser.add_argument(
+        "--native-pdf",
+        action="store_true",
+        default=True,
+        help="Use native PDF extraction for digital PDFs instead of OCR.",
     )
     return parser.parse_args()
 

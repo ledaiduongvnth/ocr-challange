@@ -13,6 +13,7 @@ services:
       # Override as needed
       PORT: 7860
       MODEL_ID: datalab-to/chandra
+      VLLM_DTYPE: float16
       VLLM_GPU_MEMORY_UTILIZATION: 0.85
     deploy:
       resources:

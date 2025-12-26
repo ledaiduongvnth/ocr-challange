@@ -8,10 +8,10 @@ services:
     image: chandra-vllm:latest
     restart: unless-stopped
     ports:
-      - "7860:7860"
+      - "7888:7888"
     environment:
       # Override as needed
-      PORT: 7860
+      PORT: 7888
       MODEL_ID: datalab-to/chandra
       VLLM_DTYPE: float16
       VLLM_GPU_MEMORY_UTILIZATION: 0.85

@@ -14,9 +14,11 @@ services:
       PORT: 7888
       MODEL_ID: datalab-to/chandra
       VLLM_DTYPE: float16
-      VLLM_GPU_MEMORY_UTILIZATION: 0.85
+      VLLM_GPU_MEMORY_UTILIZATION: 0.95
+      TENSOR_PARALLEL_SIZE: 2
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
+              device_ids: ["0", "1"]

@@ -17,9 +17,9 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 
 # Default remote inference endpoint if not provided via environment.
-os.environ.setdefault("VLLM_API_BASE", "https://uav-vts-chandra.hf.space/v1")
-os.environ.setdefault("HUGGINGFACE_HUB_TOKEN", "")
-os.environ.setdefault("VLLM_API_KEY", "")
+os.environ.setdefault("VLLM_API_BASE", "http://localhost:7888/v1")
+# os.environ.setdefault("HUGGINGFACE_HUB_TOKEN", "")
+# os.environ.setdefault("VLLM_API_KEY", "")
 
 
 from chandra.input import load_file
@@ -388,5 +388,5 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 7860))
+    port = int(os.environ.get("PORT", 7889))
     uvicorn.run(app, host="0.0.0.0", port=port, timeout_keep_alive=900)

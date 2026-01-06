@@ -6,7 +6,6 @@ from __future__ import annotations
 import re
 import os
 import sys
-import shutil
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,15 +31,91 @@ from cli_utils import (
     determine_batch_size,
     parse_cli_args,
 )
-from native_pdf import build_native_outputs, is_digital_pdf
 from ocr_pipeline import run_ocr_pipeline
 from orientation import normalize_page_images
 from pp_structure_postprocess import postprocess_with_ppstructure
-from pp_structure_preprocess import preprocess_with_ppstructure
-from surya_layout import analyze_layout_surya, _load_marker_converter
 from utils import log_component_bboxes
 
 app = FastAPI()
+
+
+def _build_full_page_layouts(page_images: list[Image.Image]) -> list:
+    """Wrap each page as a single OCR chunk to bypass layout detection."""
+    layouts: list = []
+    for page_idx, img in enumerate(page_images):
+        rgb_img = img if img.mode == "RGB" else img.convert("RGB")
+        layout = type("LayoutResult", (object,), {"chunks": []})()
+        layout.chunks.append(
+            {
+                "bbox": [0.0, 0.0, float(rgb_img.width), float(rgb_img.height)],
+                "label": "page",
+                "page_index": page_idx,
+                "block_index": 0,
+                "crop_image": rgb_img,
+            }
+        )
+        layouts.append(layout)
+    return layouts
+
+
+def _build_layout_pdf(page_images: list[Image.Image], source_path: Path) -> tuple[Path, Path | None]:
+    layout_source_path = source_path
+    layout_pdf_path: Path | None = None
+    if page_images:
+        try:
+            pdf_pages = [img if img.mode == "RGB" else img.convert("RGB") for img in page_images]
+            tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
+            os.close(tmp_handle)
+            layout_pdf_path = Path(tmp_name)
+            pdf_pages[0].save(layout_pdf_path, save_all=True, append_images=pdf_pages[1:])
+            layout_source_path = layout_pdf_path
+        except Exception:
+            layout_pdf_path = None
+    return layout_source_path, layout_pdf_path
+
+
+def _build_page_content(chunks: list[dict[str, Any]]) -> tuple[str, str]:
+    page_md_blocks: list[str] = []
+    page_html_blocks: list[str] = []
+
+    for chunk in chunks:
+        md_chunk = (chunk.get("markdown") or "").strip()
+        html_chunk = (chunk.get("html") or "").strip()
+        if md_chunk and "logo" in md_chunk.lower():
+            md_chunk = re.sub(r"<img[^>]*?>", "", md_chunk, flags=re.IGNORECASE)
+        if md_chunk:
+            page_md_blocks.append(md_chunk)
+
+        html_source = html_chunk or md_chunk
+        if html_source:
+            if any(tag in html_source.lower() for tag in ["<table", "<p", "<html"]):
+                page_html_blocks.append(html_source)
+            else:
+                page_html_blocks.append(f"<p>{html_source}</p>")
+
+    page_markdown = "\n\n".join(page_md_blocks) if page_md_blocks else ""
+    page_html = (
+        f"<html><body>{''.join(page_html_blocks)}</body></html>"
+        if page_html_blocks
+        else ""
+    )
+    return page_markdown, page_html
+
+
+def _close_images(images: list[Image.Image] | None) -> None:
+    for img in images or []:
+        try:
+            img.close()
+        except Exception:
+            pass
+
+
+def _safe_unlink(path: Path | None) -> None:
+    if path and path.exists():
+        try:
+            path.unlink()
+        except Exception:
+            pass
 
 
 def _get_cli_defaults():
@@ -67,10 +142,16 @@ def _preload_models() -> None:
     except Exception as exc:
         print(f"[startup] failed to preload InferenceManager: {exc}")
 
-    try:
-        _load_marker_converter()
-    except Exception as exc:
-        print(f"[startup] failed to preload marker converter: {exc}")
+    if _CLI_DEFAULTS.layout_mode == "detect":
+        try:
+            from surya_layout import _load_marker_converter
+        except Exception as exc:
+            print(f"[startup] failed to import marker converter: {exc}")
+        else:
+            try:
+                _load_marker_converter()
+            except Exception as exc:
+                print(f"[startup] failed to preload marker converter: {exc}")
 
 
 def _build_args(
@@ -91,6 +172,7 @@ def _build_args(
     device: str | None = None,
     attn_impl: str | None = None,
     layout_backend: str | None = None,
+    layout_mode: str | None = None,
     preprocess_backend: str | None = None,
     postprocess_backend: str | None = None,
     prompt: str | None = None,
@@ -121,6 +203,7 @@ def _build_args(
         layout_backend=layout_backend
         if layout_backend is not None
         else _CLI_DEFAULTS.layout_backend,
+        layout_mode=layout_mode if layout_mode is not None else _CLI_DEFAULTS.layout_mode,
         preprocess_backend=preprocess_backend
         if preprocess_backend is not None
         else _CLI_DEFAULTS.preprocess_backend,
@@ -149,7 +232,6 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
 
     for file_path in files:
         is_pdf = file_path.suffix.lower() == ".pdf"
-        is_native_pdf = is_pdf and is_digital_pdf(file_path)
 
         file_output_root = args.output_dir / file_path.stem
         results_dir = file_output_root / "results"
@@ -172,35 +254,32 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
         if page_images:
             page_images = normalize_page_images(page_images, save_dir=None, prefix="page")
         debug_dir = file_output_root if args.html else None
-        if args.preprocess_backend == "ppstructure":
-            page_images = preprocess_with_ppstructure(
-                page_images,
-                use_orientation=True,
-                use_unwarp=True,
+        if args.layout_mode == "page":
+            layout_results = _build_full_page_layouts(page_images)
+        else:
+            if args.preprocess_backend == "ppstructure":
+                from pp_structure_preprocess import preprocess_with_ppstructure
+
+                page_images = preprocess_with_ppstructure(
+                    page_images,
+                    use_orientation=True,
+                    use_unwarp=True,
+                    debug_dir=debug_dir,
+                )
+            from surya_layout import analyze_layout_surya
+
+            layout_source_path, layout_pdf_path = _build_layout_pdf(page_images, source_path)
+
+            _, layout_results = analyze_layout_surya(
+                file_path=layout_source_path,
+                images=page_images,
                 debug_dir=debug_dir,
             )
-        layout_source_path = source_path
-        if page_images:
-            try:
-                pdf_pages = [img if img.mode == "RGB" else img.convert("RGB") for img in page_images]
-                tmp_handle, tmp_name = tempfile.mkstemp(suffix=".pdf")
-                os.close(tmp_handle)
-                layout_pdf_path = Path(tmp_name)
-                pdf_pages[0].save(layout_pdf_path, save_all=True, append_images=pdf_pages[1:])
-                layout_source_path = layout_pdf_path
-            except Exception:
-                layout_pdf_path = None
 
-        _, layout_results = analyze_layout_surya(
-            file_path=layout_source_path,
-            images=page_images,
-            debug_dir=debug_dir,
-        )
+            log_component_bboxes(file_path.name, layout_results)
 
-        log_component_bboxes(file_path.name, layout_results)
-
-        if args.postprocess_backend == "ppstructure":
-            layout_results = postprocess_with_ppstructure(layout_results, images=page_images)
+            if args.postprocess_backend == "ppstructure":
+                layout_results = postprocess_with_ppstructure(layout_results, images=page_images)
 
         page_outputs = run_ocr_pipeline(
             file_path=file_path,
@@ -215,37 +294,6 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
             debug_dir=debug_dir,
         )
 
-        if page_outputs:
-            for layout in page_outputs:
-                chunks = getattr(layout, "chunks", None) or []
-                markdown_blocks = []
-                html_blocks = []
-                for chunk in chunks:
-                    markdown = chunk.get("markdown") or ""
-                    if "logo" in markdown.lower():
-                        markdown = re.sub(r'<img[^>]*?>', '', markdown, flags=re.IGNORECASE)
-                    # if "math" in content.lower():
-                    #     content = re.sub(r'<math.*?</math>', '', content, flags=re.IGNORECASE | re.DOTALL)
-                    if not markdown.strip():
-                        continue
-                    
-                    html = markdown
-                    if markdown:
-                        markdown_blocks.append(str(markdown))
-                    if html:
-                        if "<table" in html or "<p" in html or "<html" in html:
-                            html_blocks.append(html)
-                        else:
-                            html_blocks.append(f"<p>{html}</p>")
-                layout.markdown = "\n\n".join(markdown_blocks) if markdown_blocks else ""
-                layout.html = (
-                    f"<html><body>{''.join(html_blocks)}</body></html>" if html_blocks else ""
-                )
-                layout.token_count = 0
-                layout.images = {}
-                layout.page_box = []
-        #################################################################################
-
         all_markdown: list[str] = []
         all_html: list[str] = []
         page_entries: list[dict[str, Any]] = []
@@ -257,29 +305,7 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
             token_count = getattr(page_res, "token_count", 0) or 0
             page_box = getattr(page_res, "page_box", []) or []
 
-            page_md_blocks: list[str] = []
-            page_html_blocks: list[str] = []
-            for chunk in chunks:
-                md_chunk = (chunk.get("markdown") or "").strip()
-                html_chunk = (chunk.get("html") or "").strip()
-                if md_chunk and "logo" in md_chunk.lower():
-                    md_chunk = re.sub(r"<img[^>]*?>", "", md_chunk, flags=re.IGNORECASE)
-                if md_chunk:
-                    page_md_blocks.append(md_chunk)
-
-                html_source = html_chunk or md_chunk
-                if html_source:
-                    if any(tag in html_source.lower() for tag in ["<table", "<p", "<html"]):
-                        page_html_blocks.append(html_source)
-                    else:
-                        page_html_blocks.append(f"<p>{html_source}</p>")
-
-            page_markdown = "\n\n".join(page_md_blocks) if page_md_blocks else ""
-            page_html = (
-                f"<html><body>{''.join(page_html_blocks)}</body></html>"
-                if page_html_blocks
-                else ""
-            )
+            page_markdown, page_html = _build_page_content(chunks)
 
             # Keep the page result objects in sync for downstream save_merged_output.
             page_res.markdown = page_markdown
@@ -309,22 +335,9 @@ def _process_file(file_path: Path, args: SimpleNamespace) -> dict[str, Any]:
             save_html=args.html,
             paginate_output=args.paginate_output,
         )
-
-        if temp_pdf_path and temp_pdf_path.exists():
-            try:
-                temp_pdf_path.unlink()
-            except Exception:
-                pass
-        if layout_pdf_path and layout_pdf_path.exists():
-            try:
-                layout_pdf_path.unlink()
-            except Exception:
-                pass
-        for img in page_images or []:
-            try:
-                img.close()
-            except Exception:
-                pass
+        _safe_unlink(temp_pdf_path)
+        _safe_unlink(layout_pdf_path)
+        _close_images(page_images)
 
         results_payload["pages"].extend(page_entries)
         results_payload["markdown"] = "".join(all_markdown)
@@ -360,7 +373,6 @@ async def parse_document(file: UploadFile = File(...)):
         tmp.write(await file.read())
         tmp_path = Path(tmp.name)
 
-    output_root = Path(tempfile.mkdtemp())
     save_root = Path("./output")
     try:
         args = _build_args(
@@ -377,7 +389,6 @@ async def parse_document(file: UploadFile = File(...)):
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
-        shutil.rmtree(output_root, ignore_errors=True)
 
 
 @app.get("/health")

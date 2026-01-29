@@ -7,12 +7,12 @@ FROM vllm/vllm-openai:v0.11.0
 ENV MODEL_ID="datalab-to/chandra" \
     MODEL_DOWNLOAD_DIR="/tmp/chandra/models" \
     HF_HOME="/tmp/chandra/hf" \
-    PORT=7860 \
+    PORT=7888 \
     VLLM_ATTENTION_BACKEND="TORCH_SDPA" \
     VLLM_MAX_NUM_SEQS=16 \
     VLLM_MAX_BATCHED_TOKENS=32768 \
-    VLLM_GPU_MEMORY_UTILIZATION=0.85 \
-    VLLM_DTYPE="bfloat16" \
+    VLLM_GPU_MEMORY_UTILIZATION=0.95 \
+    VLLM_DTYPE="float16" \
     VLLM_SERVED_MODEL_NAME="chandra" \
     MAX_MODEL_LEN=16384
 
@@ -25,7 +25,7 @@ RUN cat <<'EOF' >/usr/local/bin/chandra_vllm
 set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-datalab-to/chandra}"
-PORT="${PORT:-7860}"
+PORT="${PORT:-7888}"
 HOST="${HOST:-0.0.0.0}"
 TP_SIZE="${TENSOR_PARALLEL_SIZE:-1}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
@@ -34,8 +34,8 @@ API_KEY="${VLLM_API_KEY:-}"
 ADDITIONAL_ARGS="${VLLM_EXTRA_ARGS:-}"
 MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-16}"
 MAX_BATCHED_TOKENS="${VLLM_MAX_BATCHED_TOKENS:-32768}"
-GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.85}"
-DTYPE="${VLLM_DTYPE:-bfloat16}"
+GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.95}"
+DTYPE="${VLLM_DTYPE:-float16}"
 SERVED_MODEL_NAME="${VLLM_SERVED_MODEL_NAME:-chandra}"
 ATTN_BACKEND="${VLLM_ATTENTION_BACKEND:-TORCH_SDPA}"
 
@@ -99,6 +99,6 @@ RUN { \
         --constraint /tmp/constraints.txt && \
     rm /tmp/constraints.txt
 
-EXPOSE 7860
+EXPOSE 7888
 
 ENTRYPOINT ["/app/entrypoint.sh"]

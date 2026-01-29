@@ -113,6 +113,12 @@ def parse_cli_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--layout-mode",
+        choices=("detect", "page"),
+        default="page",
+        help="Use layout detection (default) or OCR full pages as single blocks.",
+    )
+    parser.add_argument(
         "--preprocess-backend",
         choices=("none", "ppstructure"),
         default="ppstructure",

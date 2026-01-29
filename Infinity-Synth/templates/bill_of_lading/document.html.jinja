@@ -1,0 +1,30 @@
+{# Bill of Lading absolute-position layout #}
+{% extends "base.html.jinja" %}
+
+{% block style %}
+  {%- include "bill_of_lading/document.css.jinja" %}
+{% endblock style %}
+
+{% block body %}
+{% set blocks = input_data.get('blocks', []) %}
+<div class="page-wrap">
+<div class="page">
+  {% for b in blocks %}
+    {% if b.type == "image" %}
+      <img src="{{ b.src }}" style="position:absolute; left:{{ b.x }}px; top:{{ b.y }}px; width:{{ b.w }}px; height:{{ b.h }}px; {{ b.style|default('') }}" />
+    {% else %}
+      <div class="block{% if b.type == 'table' %} table{% endif %}{% if b.header_boxed %} has-flush-header{% endif %}" style="left:{{ b.x }}px; top:{{ b.y }}px; width:{{ b.w }}px; height:{{ b.h }}px;">
+        {% if b.header %}
+          {% if b.header_boxed %}
+            <div class="boxed-header flush">{{ b.header }}</div>
+          {% else %}
+            <div class="header">{{ b.header }}</div>
+          {% endif %}
+        {% endif %}
+        <div class="content">{{ b.content | safe }}</div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+</div>
+{% endblock body %}

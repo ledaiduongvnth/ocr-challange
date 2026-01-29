@@ -12,16 +12,76 @@ import random
 from PIL import Image
 
 def Jinja_render(template_path, input_data, template, styles, html_path):
+    extra_css = """
+    <style>
+    /* Force tables to span all columns and avoid splitting/overlap */
+    .main_content { column-fill: auto; }
+    .table_outer {
+        /* let table occupy full width instead of being split across columns */
+        column-span: all !important;
+        -webkit-column-span: all !important;
+        break-inside: avoid !important;
+        -webkit-column-break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        margin: 12px 0 !important;
+        width: auto !important;
+        display: block !important;
+        box-sizing: border-box;
+    }
+    .table_outer + .table_outer { margin-top: 16px !important; }
+    .table-block, .table-block table {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+    .table_outer table {
+        margin: 0;
+    }
+    .figure, img {
+        margin-bottom: 12px !important;
+        display: block;
+        max-width: 100%;
+    }
+    .a4-page * { box-sizing: border-box; }
+    </style>
+    """
+    if styles is None:
+        styles = {}
+    elif isinstance(styles, str):
+        try:
+            parsed = json.loads(styles)
+            if isinstance(parsed, dict):
+                styles = parsed
+            else:
+                styles = {"css": styles}
+        except Exception:
+            styles = {"css": styles}
+    elif not isinstance(styles, dict):
+        try:
+            parsed = json.loads(str(styles))
+            styles = parsed if isinstance(parsed, dict) else {"css": str(styles)}
+        except Exception:
+            styles = {"css": str(styles)}
+
+    styles.setdefault("gap", {})
+    styles["gap"].setdefault("h3p_gap", "16px")
+
+    styles["css"] = (styles.get("css", "") or "")
+
     env = Environment(loader=FileSystemLoader(template_path))
-    template = env.get_template(template)
-    # Render the template with the data
-    rendered_html = template.render(
+    tpl = env.get_template(template)
+    rendered_html = tpl.render(
         language="zh",
         input_data=input_data,
         styles=styles,
     )
+    if "</head>" in rendered_html:
+        rendered_html = rendered_html.replace("</head>", extra_css + "\n</head>")
+    else:
+        # fallback: prepend
+        rendered_html = extra_css + rendered_html
+
     os.makedirs(os.path.dirname(html_path), exist_ok=True)
-    with open(html_path, 'w') as f:
+    with open(html_path, 'w', encoding='utf-8') as f:
         f.write(rendered_html)
 
 class chrome_render:

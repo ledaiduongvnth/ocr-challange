@@ -1,8 +1,6 @@
 [
   {
     "type": "table",
-    "html": "<table><thead><tr><th>STT<br/>No</th><th>Ngày GD/TNX Date<br/>Số CT/Doc No</th><th>Số tiền ghi nợ<br/>Debit</th><th>Số tiền ghi có<br/>Credit</th><th>Số dư<br/>Balance</th><th>Nội dung chi tiết<br/>Transactions in detail</th></tr></thead><tbody><tr><td>1</td><td>25/11/2025<br/>9701.0000401558</td><td></td><td>1.073</td><td>8.396.325</td><td>INTEREST PAYMENT</td></tr><tr><td>2</td><td>27/11/2025<br/>5254.8798</td><td>6.762.445</td><td></td><td>1.633.880</td><td>UHHT..898750..20251124<br/>.452404...7340.20251126.DG:SP<br/>SCRUM.ORG<br/>STORE.250.00USD</td></tr></tbody></table>",
-    "caption": "",
-    "footnote": ""
+    "content": "<div class=\"section\"><table><thead><tr><th>STT<br/>No</th><th>Ngày GD/TNX Date<br/>Số CT/Doc No</th><th>Số tiền ghi nợ<br/>Debit</th><th>Số tiền ghi có<br/>Credit</th><th>Số dư<br/>Balance</th><th>Nội dung chi tiết<br/>Transactions in detail</th></tr></thead><tbody><tr><td>1</td><td>25/11/2025<br/>9701.0000401558</td><td></td><td>1.073</td><td>8.396.325</td><td>INTEREST PAYMENT</td></tr><tr><td>2</td><td>27/11/2025<br/>5254.8798</td><td>6.762.445</td><td></td><td>1.633.880</td><td>UHHT..898750..20251124<br/>.452404...7340.20251126.DG:SP<br/>SCRUM.ORG<br/>STORE.250.00USD</td></tr></tbody></table></div>"
   }
 ]

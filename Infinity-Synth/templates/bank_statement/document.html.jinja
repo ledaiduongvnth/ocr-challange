@@ -21,7 +21,8 @@
         padding: 5mm !important;
         height: auto !important;
         min-height: 297mm;
-        display: block !important;
+        display: flex !important;
+        flex-direction: column;
         page-break-after: auto !important;
         break-after: auto !important;
     }
@@ -34,27 +35,41 @@
         margin-bottom: {{ styles.row_gap }}px !important;
     }
     {% endif %}
-    .footer {
-        border-top: none !important;
-        bottom: 10mm !important;
-        left: 5mm !important;
-        right: 5mm !important;
-    }
     .header {
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        padding: 0 !important;
+        margin: 0 0 4mm 0 !important;
         border: none !important;
+        background: none !important;
         box-shadow: none !important;
-        top: 0mm !important;
-        left: 5mm !important;
-        right: 5mm !important;
+    }
+    .footer {
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        padding: 0 !important;
+        margin: 4mm 0 0 0 !important;
+        margin-top: auto !important;
+        border: none !important;
+        background: none !important;
+        box-shadow: none !important;
     }
     .hcentered-line { border-bottom: none !important; }
-    }
     .main_content {
-        padding-top: 6mm !important;
-        padding-bottom: 12mm !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        column-count: 1 !important;
+        column-gap: 0 !important;
+        flex: 1 1 auto;
     }
     .text {
         font-size: 10px !important;
+    }
+    .block, .table_outer, .header, .footer {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
    
     mjx-container[jax="CHTML"][display="false"] { display: inline-block; vertical-align: baseline; }
@@ -71,6 +86,9 @@
     {% set header = input_data.get('header', {}) %}
     {% if header %}
       <div class="header">
+        {% if header.content %}
+          {{ header.content | safe }}
+        {% else %}
         {% if header.left %}
           <div class="header-left">{{ header.left }}</div>
         {% endif %}
@@ -83,6 +101,7 @@
         {% if header.line %}
           <div class="hcentered-line"></div>
         {% endif %}
+        {% endif %}
       </div>
     {% endif %}
 
@@ -94,12 +113,15 @@
             {% if ele.type == "table" %}
             
                 <div class="block table_outer">
-                    <p class="table_caption"> {{ ele.caption }} </p>
-                    <div class="table-block">
-                        {{ ele.html | safe  }}
-                    </div>
-
-                    <p class="table_footnote"> {{ ele.footnote }} </p>
+                    {% if ele.content %}
+                      {{ ele.content | safe }}
+                    {% else %}
+                      <p class="table_caption"> {{ ele.caption }} </p>
+                      <div class="table-block">
+                          {{ ele.html | safe  }}
+                      </div>
+                      <p class="table_footnote"> {{ ele.footnote }} </p>
+                    {% endif %}
                     
                 </div>
                 {% set ns.tab_idx = ns.tab_idx + 1 %}
@@ -113,25 +135,31 @@
                 {% set ns.fig_idx = ns.fig_idx + 1 %}
             {% elif ele.type in ["image", "logo", "stamp", "signature", "form"] %}
                 <div class="block">
-                  {% if ele.path %}
+                  {% if ele.content %}
+                    {{ ele.content | safe }}
+                  {% elif ele.path %}
                     <img src="{{ ele.path }}">
                   {% elif ele.src %}
                     <img src="{{ ele.src }}">
-                  {% elif ele.content %}
-                    <p class="text">{{ ele.content }}</p>
                   {% endif %}
                 </div>
 
             {% elif ele.type == "title" %}
                 <div class="block">
-                    <h1>{{ ele.content }}</h1>
+                    {% if ele.content %}
+                      {{ ele.content | safe }}
+                    {% endif %}
                 </div>
 
-            {% elif ele.type == "Body" %}
+            {% elif ele.type in ["Body", "text"] %}
                 <div class="block">
-                    {% for txt in ele.text %}
-                        <p class="text">{{ txt }}</p>
-                    {% endfor %}
+                    {% if ele.content %}
+                      {{ ele.content | safe }}
+                    {% else %}
+                      {% for txt in ele.text %}
+                          <p class="text">{{ txt }}</p>
+                      {% endfor %}
+                    {% endif %}
                 </div>
 
             {% elif ele.type == "formula" %}
@@ -165,6 +193,9 @@
         {% set footer = input_data.get('footer', {}) %}
         {% if footer %}
           <div class="footer">
+            {% if footer.content %}
+              {{ footer.content | safe }}
+            {% else %}
             {% if footer.left %}
               <div class="footer-left">{{ footer.left }}</div>
             {% endif %}
@@ -173,6 +204,7 @@
             {% endif %}
             {% if footer.right %}
               <div class="footer-right">{{ footer.right }}</div>
+            {% endif %}
             {% endif %}
           </div>
         {% endif %}

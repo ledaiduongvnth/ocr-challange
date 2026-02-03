@@ -32,10 +32,10 @@ layout_config:
   header_footer_margin: 6
   debug_blocks_path: "working/blocks_debug.txt"
   element:
-    header: 1
+    header: 0
     logo: 0
     form: 0
-    text: 3
+    text: 5
     table: 1
     figure: 0
     image: 0
@@ -43,7 +43,7 @@ layout_config:
     formula: 0
     stamp: 1
     signature: 1
-    footer: 1
+    footer: 0
   columns: 1
 num_workers: 1
 nums: 50

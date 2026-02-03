@@ -148,6 +148,7 @@ def get_styles_num(config) -> dict:
     styles = produce_stytles()
     
     styles["columns"] = config["layout_config"]["columns"]
+    styles["row_gap"] = config["layout_config"].get("row_gap", 16)
     
     
     return styles

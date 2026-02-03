@@ -13,6 +13,49 @@
         {{ layout.set_page_num() }}
     {# Element-Specific Style #}
     {%- include "three_columns/document.css.jinja" with context %}
+
+    @page { margin: 5mm !important; }
+    body { display: block !important; }
+    .a4-page {
+        border: none;
+        padding: 5mm !important;
+        height: auto !important;
+        min-height: 297mm;
+        display: block !important;
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+    .a4-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+    {% if styles.row_gap is defined %}
+    .block {
+        margin-bottom: {{ styles.row_gap }}px !important;
+    }
+    {% endif %}
+    .footer {
+        border-top: none !important;
+        bottom: 10mm !important;
+        left: 5mm !important;
+        right: 5mm !important;
+    }
+    .header {
+        border: none !important;
+        box-shadow: none !important;
+        top: 0mm !important;
+        left: 5mm !important;
+        right: 5mm !important;
+    }
+    .hcentered-line { border-bottom: none !important; }
+    }
+    .main_content {
+        padding-top: 6mm !important;
+        padding-bottom: 12mm !important;
+    }
+    .text {
+        font-size: 10px !important;
+    }
    
     mjx-container[jax="CHTML"][display="false"] { display: inline-block; vertical-align: baseline; }
     mjx-container[jax="CHTML"][display="true"]  { display: block; text-align: center; margin: .6em 0; }
@@ -50,7 +93,7 @@
             
             {% if ele.type == "table" %}
             
-                <div class="table_outer">
+                <div class="block table_outer">
                     <p class="table_caption"> {{ ele.caption }} </p>
                     <div class="table-block">
                         {{ ele.html | safe  }}
@@ -61,22 +104,35 @@
                 </div>
                 {% set ns.tab_idx = ns.tab_idx + 1 %}
             {% elif ele.type == "figure" %}
-                <img src="{{ ele.path }}">
+                <div class="block">
+                    <img src="{{ ele.path }}">
 
-                <p class="figure_caption">图{{ ns.fig_idx }}：{{ ele.caption }}</p>
+                    <p class="figure_caption">图{{ ns.fig_idx }}：{{ ele.caption }}</p>
+                </div>
                 
                 {% set ns.fig_idx = ns.fig_idx + 1 %}
+            {% elif ele.type in ["image", "logo", "stamp", "signature", "form"] %}
+                <div class="block">
+                  {% if ele.path %}
+                    <img src="{{ ele.path }}">
+                  {% elif ele.src %}
+                    <img src="{{ ele.src }}">
+                  {% elif ele.content %}
+                    <p class="text">{{ ele.content }}</p>
+                  {% endif %}
+                </div>
 
             {% elif ele.type == "title" %}
-                <h1>{{ ele.content }}</h1>
+                <div class="block">
+                    <h1>{{ ele.content }}</h1>
+                </div>
 
             {% elif ele.type == "Body" %}
-            
-                <h3>{{ ele.heading }}</h3>
-            
-                {% for txt in ele.text %}
-                    <p class="text">{{ txt }}</p>
-                {% endfor %}
+                <div class="block">
+                    {% for txt in ele.text %}
+                        <p class="text">{{ txt }}</p>
+                    {% endfor %}
+                </div>
 
             {% elif ele.type == "formula" %}
             
@@ -106,11 +162,9 @@
           </div>
         {% endif %}
  
-
         {% set footer = input_data.get('footer', {}) %}
         {% if footer %}
           <div class="footer">
-          
             {% if footer.left %}
               <div class="footer-left">{{ footer.left }}</div>
             {% endif %}
@@ -122,7 +176,7 @@
             {% endif %}
           </div>
         {% endif %}
-        
+
         </div>
 
 <script>
@@ -149,52 +203,87 @@
     return tbl.querySelector('tr');
   }
 
-  function styleThreeLine(tbl) {
-    tbl.style.borderCollapse = 'collapse';
-    tbl.style.borderTop = '2px solid #000';
-    tbl.style.borderBottom = '2px solid #000';
-    tbl.style.borderLeft = 'none';
-    tbl.style.borderRight = 'none';
-
-    const cells = tbl.querySelectorAll('th, td');
-    cells.forEach(cell => {
-      setCellStyle(cell, {
-        border: 'none',
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        padding: '6px 8px'
-      });
-    });
-
-    const headerRow = pickHeaderRow(tbl);
-    if (headerRow) {
-      headerRow.querySelectorAll('th, td').forEach(cell => {
-        cell.style.borderBottom = '1px solid #000';
-      });
-    }
-  }
-
-  function styleFullBorder(tbl) {
-    tbl.style.borderCollapse = 'collapse';
-    tbl.style.border = '1px solid #000';
-    const alignCenter = Math.random() < 0.5 ? 'center' : 'left';
-
-    const cells = tbl.querySelectorAll('th, td');
-    cells.forEach(cell => {
-      setCellStyle(cell, {
-        border: '1px solid #000',
-        textAlign: alignCenter,
-        verticalAlign: 'middle',
-        padding: '6px 8px'
-      });
-    });
-  }
-
   function styleOneTable(tbl) {
     if (tbl.dataset.styled === '1') return; 
-    const useThreeLine = Math.random() < 0.5;
-    if (useThreeLine) styleThreeLine(tbl);
-    else styleFullBorder(tbl);
+    const borderModes = [
+      { mode: 'full', weight: 0.30 },
+      { mode: 'row', weight: 0.20 },
+      { mode: 'col', weight: 0.20 },
+      { mode: 'none', weight: 0.30 }
+    ];
+    let r = Math.random();
+    let borderMode = 'full';
+    for (const opt of borderModes) {
+      r -= opt.weight;
+      if (r <= 0) { borderMode = opt.mode; break; }
+    }
+    const borderWeight = ['0.5px', '1px', '2px'][Math.floor(Math.random() * 3)];
+    const borderColor = ['#000000', '#444444', '#1f5ea8'][Math.floor(Math.random() * 3)];
+    const headerStyle = ['off', 'bold', 'uppercase', 'shaded'][Math.floor(Math.random() * 4)];
+    const stripe = Math.random() < 0.5;
+    const padding = ['4px 6px', '6px 8px', '10px 12px'][Math.floor(Math.random() * 3)];
+    const radius = Math.random() < 0.5 ? '0px' : '6px';
+    const bg = Math.random() < 0.5 ? '#ffffff' : '#f7f2e8';
+    const align = Math.random() < 0.5 ? 'left' : 'center';
+
+    tbl.style.borderCollapse = 'collapse';
+    tbl.style.background = bg;
+    tbl.style.borderRadius = radius;
+    tbl.style.overflow = radius === '0px' ? 'visible' : 'hidden';
+
+    const cells = tbl.querySelectorAll('th, td');
+    cells.forEach(cell => {
+      setCellStyle(cell, {
+        textAlign: align,
+        verticalAlign: 'middle',
+        padding: padding,
+        border: 'none'
+      });
+    });
+
+    if (borderMode === 'full') {
+      tbl.style.border = `${borderWeight} solid ${borderColor}`;
+      cells.forEach(cell => { cell.style.border = `${borderWeight} solid ${borderColor}`; });
+    } else if (borderMode === 'row') {
+      tbl.style.border = 'none';
+      const rows = tbl.querySelectorAll('tr');
+      rows.forEach(row => {
+        row.querySelectorAll('th, td').forEach(cell => {
+          cell.style.borderBottom = `${borderWeight} solid ${borderColor}`;
+        });
+      });
+    } else if (borderMode === 'col') {
+      tbl.style.border = 'none';
+      const rows = tbl.querySelectorAll('tr');
+      rows.forEach(row => {
+        const rowCells = row.querySelectorAll('th, td');
+        rowCells.forEach((cell, idx) => {
+          if (idx < rowCells.length - 1) {
+            cell.style.borderRight = `${borderWeight} solid ${borderColor}`;
+          }
+        });
+      });
+    } else {
+      tbl.style.border = 'none';
+    }
+
+    if (stripe) {
+      const rows = tbl.querySelectorAll('tr');
+      rows.forEach((row, i) => {
+        if (i % 2 === 1) row.style.background = '#f1f1f1';
+      });
+    }
+
+    if (headerStyle !== 'off') {
+      const headerRow = pickHeaderRow(tbl);
+      if (headerRow) {
+        headerRow.querySelectorAll('th, td').forEach(cell => {
+          if (headerStyle === 'bold') cell.style.fontWeight = '700';
+          if (headerStyle === 'uppercase') cell.style.textTransform = 'uppercase';
+          if (headerStyle === 'shaded') cell.style.background = '#e6e6e6';
+        });
+      }
+    }
     tbl.dataset.styled = '1';
   }
 

@@ -1,0 +1,75 @@
+[
+  {
+    "type": "Body",
+    "heading": "Account Holder",
+    "text": [
+      "Tên tài khoản/Account name: DO THI NGOC HA",
+      "Số tài khoản/Account number: 0301000352816",
+      "Ngày thực hiện/Date: 29/12/2025",
+      "Chi nhánh thực hiện/Branch: VCB THANG LONG-PGD NGUYEN CO THACH"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Account Type & Address",
+    "text": [
+      "Loại tài khoản/Type of Account: Tài khoản 1 chủ sở hữu/ Sole owner account",
+      "Địa chỉ/Address: QT, PHUONG DAI MO, QUAN NAM TU LIEM, THANH PHO HA NOI"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Identification & Period",
+    "text": [
+      "CCCD/Hộ chiếu số/Citizen ID/PP No: 033196003050",
+      "CIF: 9071416",
+      "Loại tiền/Currency: VND",
+      "Từ/From: 25/11/2025",
+      "Đến/To: 27/11/2025"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Opening Balance",
+    "text": [
+      "Số dư đầu kỳ/Opening balance: 8.395.252"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Totals",
+    "text": [
+      "Tổng số/Total: 6.762.445",
+      "Credit: 1.073",
+      "Số dư cuối kỳ/Closing balance: 1.633.880"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Bank Confirmation",
+    "text": [
+      "Xác nhận của ngân hàng/",
+      "Bank's confirmation"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Appreciation",
+    "text": [
+      "Trân trọng cảm ơn quý khách đã sử dụng dịch vụ của Vietcombank!",
+      "Thank you for using Vietcombank's services!",
+      "VIETCOMBANK - Chung niềm tin vững tương lai",
+      "VIETCOMBANK - Together for the future",
+      "PHÓ TRƯỞNG PHÒNG",
+      "Hà Quốc Bảo"
+    ]
+  },
+  {
+    "type": "Body",
+    "heading": "Note",
+    "text": [
+      "Ghi chú: Giấy Xác nhận này của Ngân hàng TMCP Ngoại thương Việt Nam đảm bảo thông tin chính xác tại thời điểm xác nhận theo nội dung yêu cầu của Khách hàng. Giấy xác nhận này không cấu thành bất kỳ cam đoan hay bảo đảm nào của Ngân hàng TMCP Ngoại thương Việt Nam tại thời điểm hiện tại hay tương lai đối với các nghĩa vụ của Khách hàng xác lập với bên thứ ba./.",
+      "Note: This letter of confirmation of the Joint Stock Commercial Bank for Foreign Trade of Vietnam ensures accurate information at the time of confirmation as requested by the customer. This acknowledgment does not constitute any current or future guarantees of the customer's obligations confirmed to third parties./."
+    ]
+  }
+]

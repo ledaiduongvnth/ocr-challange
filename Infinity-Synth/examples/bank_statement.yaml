@@ -1,0 +1,49 @@
+data_paths:
+  text: "examples/data/bank_statement/text.json"
+  image: ""
+  table: "examples/data/bank_statement/table.json"
+  formula: ""
+  title: ""
+  form: ""
+  stamp: "examples/data/bank_statement/stamp.json"
+  logo: ""
+  signature: "examples/data/bank_statement/signature.json"
+  header: "examples/data/bank_statement/header.json"
+  footer: "examples/data/bank_statement/footer.json"
+work_path:
+  template_path: "templates"
+  template_file: "bank_statement/document.html.jinja"
+  template_get_data: "bank_statement/getData"
+  html_path: "/media/hdd01/PycharmProjects/ocr-challange/Infinity-Synth/working/html/output_{i}.html"
+  save_image_dir: "working/pdf/"
+  output_gt_path: "working/ground_truth/result_of_id{i}.json"
+  result: "results.json"
+defaults:
+  save_path: "Temp"
+  save_every_n: 4
+layout_config:
+  shuffle: false
+  page_width: 2480
+  page_height: 3508
+  left_margin: 50
+  right_margin: 50
+  row_gap: 8
+  col_gap: 0
+  header_footer_margin: 6
+  debug_blocks_path: "working/blocks_debug.txt"
+  element:
+    header: 1
+    logo: 0
+    form: 0
+    text: 3
+    table: 1
+    figure: 0
+    image: 0
+    title: 0
+    formula: 0
+    stamp: 1
+    signature: 1
+    footer: 1
+  columns: 1
+num_workers: 1
+nums: 50

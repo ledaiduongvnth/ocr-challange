@@ -12,23 +12,32 @@
     {% import "macro/page_layout.css.jinja" as layout %}
         {{ layout.set_page_num() }}
     {# Element-Specific Style #}
-    {%- include "three_columns/document.css.jinja" with context %}
+    {# Intentionally omit three_columns styles to avoid fixed page breaks/padding #}
 
-    @page { margin: 5mm !important; }
+    @page {
+        size: 210mm 297mm !important;
+        margin: 5mm !important;
+    }
     body { display: block !important; }
     .a4-page {
-        border: none;
+        width: 210mm !important;
+        height: 297mm !important;
+        border: none !important;
         padding: 5mm !important;
-        height: auto !important;
-        min-height: 297mm;
         display: flex !important;
-        flex-direction: column;
+        flex-direction: column !important;
         page-break-after: auto !important;
         break-after: auto !important;
+        box-sizing: border-box !important;
+        position: relative !important;
     }
     .a4-page:last-child {
         page-break-after: auto !important;
         break-after: auto !important;
+    }
+    .a4-page.landscape {
+        width: 297mm !important;
+        min-height: 210mm !important;
     }
     {% if styles.row_gap is defined %}
     .block {
@@ -66,6 +75,16 @@
     }
     .text {
         font-size: 10px !important;
+    }
+    .table-only .header,
+    .table-only .footer,
+    .table-only .page_bottom,
+    .table-only .block:not(.table_outer) {
+        display: none !important;
+    }
+    .table-scale .table_outer {
+        transform-origin: top left;
+        transform: scale(var(--table-scale, 1));
     }
     .block, .table_outer, .header, .footer {
         break-inside: avoid;
@@ -211,6 +230,8 @@
 
         </div>
 
+<div id="layout-debug" style="position:fixed; right:8px; bottom:8px; background:#fff; border:1px solid #ccc; padding:6px; font:12px/1.2 monospace; z-index:9999;"></div>
+
 <script>
 (function () {
   'use strict';
@@ -324,8 +345,65 @@
     scope.querySelectorAll('table:not([data-styled])').forEach(styleOneTable);
   }
 
+  function fitTableToPage() {
+    const page = document.querySelector('.a4-page');
+    if (!page) return;
+    const tableWrap = page.querySelector('.table_outer');
+    if (!tableWrap) return;
+
+    const header = page.querySelector('.header');
+    const footer = page.querySelector('.footer');
+    const bottom = page.querySelector('.page_bottom');
+
+    const reserve = (header ? header.offsetHeight : 0) +
+      (footer ? footer.offsetHeight : 0) +
+      (bottom ? bottom.offsetHeight : 0) + 8;
+
+    const fits = () => {
+      const available = page.clientHeight - reserve;
+      const h = tableWrap.scrollHeight;
+      return { available, h };
+    };
+
+    let mode = 'normal';
+    // 1) Normal
+    let { available, h } = fits();
+    if (h <= available) return;
+
+    // 2) Landscape
+    mode = 'landscape';
+    page.classList.add('landscape');
+    ({ available, h } = fits());
+    if (h <= available) return;
+
+    // 3) Table-only
+    mode = 'table-only';
+    page.classList.add('table-only');
+    ({ available, h } = fits());
+    // Do not return here; always apply scaling after table-only.
+
+    // 4) Scale down
+    mode = 'scale';
+    const scale = Math.max(0.3, Math.min(1, available / Math.max(h, 1)));
+    page.style.setProperty('--table-scale', scale.toFixed(3));
+    page.classList.add('table-scale');
+    const debug = document.getElementById('layout-debug');
+    if (debug) {
+      debug.textContent = `mode=${mode} available=${available.toFixed(1)} height=${h.toFixed(1)} scale=${scale.toFixed(3)}`;
+    }
+    console.log('[bank_statement] table_fit', {
+      mode,
+      available,
+      height: h,
+      scale: scale.toFixed(3)
+    });
+  }
+
   function run() {
     styleTables(document);
+    requestAnimationFrame(() => {
+      fitTableToPage();
+    });
   }
 
   if (document.readyState === 'loading') {

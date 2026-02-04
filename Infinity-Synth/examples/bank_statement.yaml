@@ -35,7 +35,7 @@ layout_config:
     header: 0
     logo: 0
     form: 0
-    text: 5
+    text: 3
     table: 1
     figure: 0
     image: 0

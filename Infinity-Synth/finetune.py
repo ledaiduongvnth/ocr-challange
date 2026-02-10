@@ -48,12 +48,10 @@ class PDFHTMLDataset(Dataset):
         html_dir,
         ids=None,
         dpi=200,
-        use_local_copy=True,
     ):
         self.pdf_dir = pdf_dir
         self.html_dir = html_dir
         self.dpi = dpi
-        self.use_local_copy = use_local_copy
 
         if ids is None:
             self.ids = sorted(
@@ -72,25 +70,13 @@ class PDFHTMLDataset(Dataset):
 
         src_pdf = os.path.join(self.pdf_dir, f"{id_}.pdf")
 
-        # copy PDF về local để tránh I/O error trên Drive
-        if self.use_local_copy:
-            local_pdf = f"/content/{id_}.pdf"
-            shutil.copy(src_pdf, local_pdf)
-            pdf_path = local_pdf
-        else:
-            pdf_path = src_pdf
-
         images = convert_from_path(
-            pdf_path,
+            src_pdf,
             dpi=self.dpi,
             first_page=1,
             last_page=1,
         )
-
         image = images[0].convert("RGB")
-
-        if self.use_local_copy:
-            os.remove(local_pdf)
 
         with open(
             os.path.join(self.html_dir, f"{id_}.html"),

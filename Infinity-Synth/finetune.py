@@ -17,7 +17,7 @@ from tqdm import tqdm
 finevision_subset ="bill_2"
 model_id = "lightonai/LightOnOCR-2-1B" # or any of the above checkpoints
 
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
+device = "cuda:1" if torch.cuda.is_available() else "cpu"
 
 processor = LightOnOcrProcessor.from_pretrained(model_id)
 processor.tokenizer.padding_side = "left"
@@ -27,7 +27,7 @@ model = LightOnOcrForConditionalGeneration.from_pretrained(
     model_id,
     torch_dtype=torch.bfloat16,
     attn_implementation="sdpa",
-    device_map="cuda:0" if torch.cuda.is_available() else "cpu",
+    device_map=device,
 ).to(device)
 
 for param in model.model.language_model.parameters():
@@ -35,8 +35,8 @@ for param in model.model.language_model.parameters():
 print(f"Language model frozen: {param.requires_grad}")
 
 #=====================================================================================================
-BASE_DIR = "/content/drive/MyDrive/r2/data"
-outpth = "/content/drive/MyDrive/r2/model"
+BASE_DIR = "/media/drive-2t/hoangnv83/code/ocr/data/r2k"
+outpth = "./model"
 IMAGE_DIR = f"{BASE_DIR}/pdf"
 HTML_DIR  = f"{BASE_DIR}/labels"
 #==================================================================

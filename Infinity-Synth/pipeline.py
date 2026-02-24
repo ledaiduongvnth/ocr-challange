@@ -13,7 +13,7 @@ import yaml
 from typing import List
 
 
-def pipeline(title: List[dict], text: List[dict], table: List[dict], formula: List[dict], figure: List[dict],
+def pipeline(title: List[dict], text: List[dict], table: List[dict], checklist: List[dict], formula: List[dict], figure: List[dict],
              form: List[dict], stamp: List[dict], logo: List[dict], signature: List[dict],
              header: List[dict], footer: List[dict],
              nums: int, process_id: int):
@@ -33,7 +33,7 @@ def pipeline(title: List[dict], text: List[dict], table: List[dict], formula: Li
     total_count = 0
 
 
-    Input_data = GetData(title, text, table, formula, figure, form, stamp, logo, signature, header, footer, process_id)
+    Input_data = GetData(title, text, table, checklist, formula, figure, form, stamp, logo, signature, header, footer, process_id)
     template_path = work_path["template_path"]
     template = work_path["template_file"]
 
@@ -69,4 +69,3 @@ def pipeline(title: List[dict], text: List[dict], table: List[dict], formula: Li
             print(f"Process id {process_id}, Acc {total_count}")
     save_data_to_file(all_data, output_gt_path)
     render.close()
-

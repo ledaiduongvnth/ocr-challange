@@ -5,7 +5,7 @@
     "y": 455.5,
     "w": 578.25,
     "h": 245.0,
-    "header": "PORT OF LOADING",
+    "header": "PORT OF LOADING_form",
     "header_boxed": true,
     "content": "Rotterdam<br/>Netherlands"
   },
@@ -95,7 +95,7 @@
     "y": 1386.85,
     "w": 2313.0,
     "h": 537.22,
-    "header": "BILL OF LADING",
+    "header": "BILL OF LADING_1",
     "header_boxed": false,
     "content": "<div class=\"two-col\"><div class=\"col\">123456<br/>Straight<br/>October 10, 2023<br/>Ocean Carrier<br/>New York, USA<br/>London, UK</div><div class=\"col\">ABC Company<br/>DEF Company<br/>2500 kilograms<br/>30 cubic meters</div></div>"
   },

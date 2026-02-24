@@ -22,6 +22,7 @@ def load_data_from_config(config):
     text = read_json(paths.get('text', ''))
     figure = read_json(paths.get('image', ''))
     table = read_json(paths.get('table', ''))
+    checklist = read_json(paths.get('checklist', ''))
     formula = read_json(paths.get('formula', ''))
     title = read_json(paths.get('title', ''))
     form = read_json(paths.get('form', ''))
@@ -31,7 +32,7 @@ def load_data_from_config(config):
     header = read_json(paths.get('header', ''))
     footer = read_json(paths.get('footer', ''))
 
-    return title, table, text, formula, figure, form, stamp, logo, signature, header, footer
+    return title, table, text, checklist, formula, figure, form, stamp, logo, signature, header, footer
 
 def chunkify(lst, n):
     k, m = divmod(len(lst), n)
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     args = get_args()
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
-    title, table, text, formula, figure, form, stamp, logo, signature, header, footer = load_data_from_config(config)
+    title, table, text, checklist, formula, figure, form, stamp, logo, signature, header, footer = load_data_from_config(config)
     ensure_work_dirs(config)
     
     
@@ -54,6 +55,7 @@ if __name__ == "__main__":
     title_chunks   = chunkify(title,   num_workers)
     table_chunks   = chunkify(table,   num_workers)
     text_chunks    = chunkify(text,    num_workers)
+    checklist_chunks = chunkify(checklist, num_workers)
     formula_chunks = chunkify(formula, num_workers)
     figure_chunks  = chunkify(figure,  num_workers)
     form_chunks    = chunkify(form,    num_workers)
@@ -71,6 +73,7 @@ if __name__ == "__main__":
                 title_chunks[i],
                 text_chunks[i],
                 table_chunks[i],
+                checklist_chunks[i],
                 formula_chunks[i],
                 figure_chunks[i],
                 form_chunks[i],

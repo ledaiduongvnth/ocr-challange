@@ -5,7 +5,7 @@
     "y": 455.5,
     "w": 578.25,
     "h": 245.0,
-    "header": "PORT OF LOADING",
+    "header": "PORT OF LOADING_text",
     "header_boxed": true,
     "content": "Rotterdam<br/>Netherlands"
   },
@@ -45,7 +45,7 @@
     "y": 295.8,
     "w": 578.25,
     "h": 279.5,
-    "header": "Multimodal Transport or Port-to-Port Shipment",
+    "header": "Multimodal Transport or Port-to-Port Shipment _text",
     "header_boxed": true,
     "content": "Global Logistics Inc.<br/>123 Ocean Avenue, New York, NY 10001"
   },
@@ -95,7 +95,7 @@
     "y": 1386.85,
     "w": 2313.0,
     "h": 537.22,
-    "header": "BILL OF LADING",
+    "header": "BILL OF LADING_3",
     "header_boxed": false,
     "content": "<div class=\"two-col\"><div class=\"col\">123456<br/>Straight<br/>October 10, 2023<br/>Ocean Carrier<br/>New York, USA<br/>London, UK</div><div class=\"col\">ABC Company<br/>DEF Company<br/>2500 kilograms<br/>30 cubic meters</div></div>"
   },

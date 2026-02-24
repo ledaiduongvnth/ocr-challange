@@ -1,0 +1,8 @@
+[
+  {
+    "type": "block",
+    "header": null,
+    "header_boxed": false,
+    "content": "<table><tr><th>No</th><th>PORT OF LOADING</th><th>Particulars furnished by the Merchant</th></tr><tr><td>BL-20231015-001</td><td>Rotterdam<br/>Netherlands</td><td>100 cartons of automotive parts, 15 kg each, packed in corrugated boxes, marked \"Fragile - Handle with care\"</td></tr><tr><th>Multimodal Transport or Port-to-Port Shipment_form</th><th>CODE</th><th>RATE</th></tr><tr><td>Global Logistics Inc.<br/>123 Ocean Avenue, New York, NY 10001</td><td>BOL123456</td><td>W/D: $50.00 per MT</td></tr></table>"
+  }
+]

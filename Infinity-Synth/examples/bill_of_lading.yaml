@@ -14,7 +14,7 @@ work_path:
   template_path: "templates"
   template_file: "bill_of_lading/document.html.jinja"
   template_get_data: "bill_of_lading/getData"
-  html_path: "/media/hdd01/PycharmProjects/idp_round3/data-pipeline/Infinity-Synth/working/html/output_{i}.html"
+  html_path: "/home/khaint02/Desktop/ocr-challange/Infinity-Synth/html/output_{i}.html"
   save_image_dir: "working/pdf/"
   output_gt_path: "working/ground_truth/result_of_id{i}.json"
   result: "results.json"
@@ -23,8 +23,8 @@ defaults:
   save_every_n: 4
 layout_config:
   shuffle: false
-  page_width: 2480
-  page_height: 3508
+  page_width: 1237
+  page_height: 1755
   left_margin: 50
   right_margin: 50
   row_gap: 0
@@ -34,14 +34,14 @@ layout_config:
   element:
     header: 1
     logo: 1
-    form: 6
+    form: 1
     text: 1
     table: 1
     stamp: 1
     signature: 1
-    figure: 0
-    image: 0
-    title: 0
+    figure: 1
+    image: 1
+    title: 5
     formula: 0
     footer: 1
   columns: 1

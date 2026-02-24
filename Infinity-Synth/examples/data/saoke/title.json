@@ -1,0 +1,35 @@
+[
+  {
+    "type": "title",
+    "header": "Bảng Sao Kê Thẻ tín dụng Shinhan",
+    "header_boxed": false,
+    "content": ""
+  },
+  {
+    "type": "title",
+    "header": "Shinhan Credit Card Statement",
+    "header_boxed": false,
+    "content": ""
+  },
+  {
+    "type": "title",
+    "header": "* Tóm tắt Sao kê Thẻ tín dụng / Statement Summary",
+    "header_boxed": false,
+    "content": ""
+  },
+  {
+    "type": "title",
+    "header": "* Chương trình Điểm thưởng, Dặm thưởng, Hoàn tiền / Reward Details",
+    "header_boxed": false
+  },
+  {
+    "type": "title",
+    "header": "Khách hàng",
+    "header_boxed": false
+  },
+  {
+    "type": "title",
+    "header": "Địa chỉ",
+    "header_boxed": false
+  }
+]

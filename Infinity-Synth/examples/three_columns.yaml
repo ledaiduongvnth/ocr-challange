@@ -3,7 +3,7 @@ data_paths:
   image: "examples/data/figure.json"
   table: "examples/data/table.json"
   formula: "examples/data/formula.json"
-  title: ""
+  title: "examples/data/saoke/title.json"
 work_path:
   template_path: "templates"
   template_file: "three_columns/document.html.jinja"

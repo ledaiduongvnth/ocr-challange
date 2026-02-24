@@ -1,0 +1,85 @@
+{# Sao ke absolute-position layout (with artifacts) #}
+{% extends "base.html.jinja" %}
+
+{% block style %}
+  {%- include "sao_ke/document.css.jinja" %}
+{% endblock style %}
+
+{% block body %}
+{% set blocks = input_data.get('blocks', []) %}
+{% set all_items = blocks %}
+{% set image_types = [
+  "image", "logo", "stamp", "signature", "form", "figure",
+  "watermark_image", "checkbox_image", "seal", "icon"
+] %}
+
+<div class="page-wrap">
+  <div class="page">
+    {% for b in all_items %}
+      {% set b_type = b.type|default('block') %}
+      {% set src = b.get('src') or b.get('path') or b.get('image') %}
+      {% set is_image = src %}
+      {% set is_watermark = b_type == 'watermark' or b.get('role') == 'watermark' %}
+      {% set is_checkbox = b_type == 'checkbox' %}
+      {% set inline_style = "left:" ~ b.x ~ "px; top:" ~ b.y ~ "px; width:" ~ b.w ~ "px; height:" ~ b.h ~ "px;" %}
+      {% if b.z is defined %}
+        {% set inline_style = inline_style ~ " z-index:" ~ b.z ~ ";" %}
+      {% endif %}
+      {% if b.opacity is defined %}
+        {% set inline_style = inline_style ~ " opacity:" ~ b.opacity ~ ";" %}
+      {% endif %}
+      {% if b.rotate is defined %}
+        {% set inline_style = inline_style ~ " transform: rotate(" ~ b.rotate ~ "deg); transform-origin: center;" %}
+      {% endif %}
+      {% if b.style %}
+        {% set inline_style = inline_style ~ " " ~ b.style %}
+      {% endif %}
+
+      {% if is_image %}
+        <img class="artifact {% if is_watermark %}watermark{% endif %} {{ b_type }}"
+             src="{{ src }}" style="position:absolute; {{ inline_style }}" />
+
+      {% elif is_checkbox %}
+        <div class="artifact checkbox" style="position:absolute; {{ inline_style }}">
+          <span class="checkbox-box">
+            {% if b.get('checked') %}
+              <span class="checkbox-mark">&#10003;</span>
+            {% endif %}
+          </span>
+          {% if b.get('label') %}
+            <span class="checkbox-label">{{ b.label }}</span>
+          {% endif %}
+        </div>
+
+      {% elif is_watermark %}
+        <div class="artifact watermark" style="position:absolute; {{ inline_style }}">
+          {% if b.content %}
+            {{ b.content | safe }}
+          {% elif b.text %}
+            {{ b.text }}
+          {% endif %}
+        </div>
+
+      {% else %}
+        <div class="block{% if b_type == 'table' %} table{% endif %}{% if b.header_boxed %} has-flush-header{% endif %}"
+             style="position:absolute; {{ inline_style }}">
+          {% if b.header %}
+            {% if b.header_boxed %}
+              <div class="boxed-header flush">{{ b.header }}</div>
+            {% else %}
+              <div class="header">{{ b.header }}</div>
+            {% endif %}
+          {% endif %}
+          <div class="content">
+            {% if b.content %}
+              {{ b.content | safe }}
+            {% elif b.text %}
+              {{ b.text }}
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock body %}

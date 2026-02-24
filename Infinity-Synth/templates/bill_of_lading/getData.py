@@ -4,6 +4,8 @@ from pprint import pformat
 
 
 def _pick_first_block(value):
+    # Lấy phần tử đầu tiên nếu là list, hoặc trả về dict nếu đã là dict.
+    # Dùng để fallback header/footer khi không có iterator.
     if isinstance(value, list):
         return value[0] if value else None
     if isinstance(value, dict):
@@ -12,6 +14,7 @@ def _pick_first_block(value):
 
 
 def _rect(block):
+    # Trích (x, y, w, h) từ block để tính vùng header/footer.
     try:
         return (
             float(block.get("x", 0)),
@@ -24,28 +27,83 @@ def _rect(block):
 
 
 def _layout_blocks(blocks, page_width, top, bottom, left, right, row_gap, col_gap):
-    x = left
-    y = top
-    row_h = 0.0
+    # Fixed layout theo kích thước 1237x1755 (logo + 3 title + header + form + table + checklist + text + signature)
+    content_w = page_width - left - right
+    content_h = bottom - top
+
+    # Tỉ lệ chiều cao từng vùng (theo content_h)
+    row1_h = int(round(content_h * 0.10))  # top row (logo + 3 title)
+    row2_h = int(round(content_h * 0.05))  # header row (right side)
+    form_h = int(round(content_h * 0.20))
+    title1_h = int(round(content_h * 0.04))  # title trước table
+    table_h = int(round(content_h * 0.20))
+    title2_h = int(round(content_h * 0.04))  # title trước checklist
+    checklist_h = int(round(content_h * 0.16))
+    title3_h = int(round(content_h * 0.04))  # title trước text bar
+    textbar_h = int(round(content_h * 0.04))
+
+    used = row1_h + row2_h + form_h + title1_h + table_h + title2_h + checklist_h + title3_h + textbar_h
+    bottom_h = max(0, int(round(content_h - used)))
+
+    # X positions
+    logo_w = int(round(content_w * 0.40))
+    right_w = int(round(content_w - logo_w))
+    title_w = int(round(right_w / 3.0))
+
+    y0 = top
+    y1 = y0 + row1_h
+    y2 = y1 + row2_h
+    y3 = y2 + form_h
+    y4 = y3 + title1_h
+    y5 = y4 + table_h
+    y6 = y5 + title2_h
+    y7 = y6 + checklist_h
+    y8 = y7 + title3_h
+    y9 = y8 + textbar_h
+
+    slots = {
+        "logo": [(left, y0, logo_w, row1_h + row2_h)],
+        "title": [
+            (left + logo_w + 0 * title_w, y0, title_w, row1_h),
+            (left + logo_w + 1 * title_w, y0, title_w, row1_h),
+            (left + logo_w + 2 * title_w, y0, title_w, row1_h),
+            (left, y3, content_w, title1_h),
+            (left, y5, content_w, title2_h),
+            (left, y7, content_w, title3_h),
+        ],
+        "text": [
+            (left + logo_w, y1, right_w, row2_h),  # header (right)
+            (left, y8, content_w, textbar_h),      # text bar
+            (left, y9, int(round(content_w * 0.60)), bottom_h) # bottom-left text
+        ],
+        "form": [(left, y2, content_w, form_h)],
+        "table": [(left, y4, content_w, table_h)],
+        "signature": [(left + int(round(content_w * 0.60)), y9, int(round(content_w * 0.40)), bottom_h)],
+        "stamp": [],
+        "image": [],
+        "figure": [],
+        "formula": [],
+    }
+
+    slot_idx = {k: 0 for k in slots}
+
     for b in blocks:
-        w = float(b.get("w", 0) or 0)
-        h = float(b.get("h", 0) or 0)
-        if w <= 0 or h <= 0:
+        b_type = b.get("type")
+        if b_type not in slots or not slots[b_type]:
             continue
-        if x + w > page_width - right:
-            x = left
-            y += row_h + row_gap
-            row_h = 0.0
-        if y + h > bottom:
-            raise ValueError("Layout overflow: reduce element counts or sizes to fit page.")
+        idx = slot_idx[b_type]
+        if idx >= len(slots[b_type]):
+            continue
+        x, y, w, h = slots[b_type][idx]
         b["x"] = x
         b["y"] = y
-        x += w + col_gap
-        if h > row_h:
-            row_h = h
+        b["w"] = w
+        b["h"] = h
+        slot_idx[b_type] += 1
 
 
 def _block_key(b):
+    # Tạo khóa để tránh add trùng block vào layout.
     return (
         b.get("type"),
         b.get("header"),
@@ -58,6 +116,7 @@ def _block_key(b):
 
 
 def get_data(self, layout_config):
+    # Entry chính: tạo danh sách blocks theo layout_config và data input.
     elem_cfg = layout_config.get("element", {})
     blocks = []
 
@@ -74,9 +133,12 @@ def get_data(self, layout_config):
         "formula": "formula_iter",
     }
 
+    # Nếu bật randomize_counts thì số lượng mỗi loại block sẽ random trong [0..max]
     randomize_counts = bool(layout_config.get("randomize_counts", False))
+    # Có thể trộn thứ tự block trước khi layout
     shuffle_blocks = layout_config.get("shuffle", True)
 
+    # Duyệt từng loại block theo mapping và thêm vào danh sách blocks
     seen = set()
     for key, iter_name in mapping.items():
         max_count = elem_cfg.get(key, 0)
@@ -106,6 +168,7 @@ def get_data(self, layout_config):
     if shuffle_blocks:
         random.shuffle(blocks)
 
+    # Lấy header/footer từ iterator nếu có, không thì lấy từ layout_config
     header_block = next(self.header_iter, None) if self.header else None
     if header_block is None:
         header_block = _pick_first_block(layout_config.get("header"))
@@ -118,9 +181,11 @@ def get_data(self, layout_config):
     if footer_block is None:
         raise ValueError("Footer data missing: provide data_paths.footer or layout_config.footer")
 
+    # Lấy vùng header/footer để tính top/bottom layout
     header_rect = _rect(header_block)
     footer_rect = _rect(footer_block)
 
+    # Tham số layout từ config (có default)
     page_w = float(layout_config.get("page_width", 2433))
     left = float(layout_config.get("left_margin", 120))
     right = float(layout_config.get("right_margin", 120))
@@ -128,12 +193,15 @@ def get_data(self, layout_config):
     col_gap = float(layout_config.get("col_gap", 16))
     margin = float(layout_config.get("header_footer_margin", 8))
 
+    # Vùng đặt content: từ dưới header đến trên footer
     top = (header_rect[1] + header_rect[3] + margin) if header_rect else margin
     bottom = (footer_rect[1] - margin) if footer_rect else float(layout_config.get("page_height", 3508)) - margin
 
+    # Auto gán tọa độ cho các block nội dung
     _layout_blocks(blocks, page_w, top, bottom, left, right, row_gap, col_gap)
     blocks = [header_block] + blocks + [footer_block]
 
+    # In debug ra console và lưu ra file nếu cần
     pretty = pformat(blocks, width=120)
     print(pretty)
     debug_path = layout_config.get("debug_blocks_path")

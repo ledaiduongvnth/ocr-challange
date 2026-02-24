@@ -55,6 +55,7 @@ class GetData:
         title: List[dict],
         text: List[dict],
         table: List[dict],
+        checklist: List[dict],
         formula: List[dict],
         figure: List[dict],
         form: List[dict],
@@ -68,6 +69,7 @@ class GetData:
         self.title = title
         self.text = text
         self.table = table
+        self.checklist = checklist
         self.formula = formula
         self.figure = figure
         self.form = form
@@ -80,6 +82,7 @@ class GetData:
         self.title_iter = itertools.cycle(self.title)
         self.text_iter = itertools.cycle(self.text)
         self.table_iter = itertools.cycle(self.table)
+        self.checklist_iter = itertools.cycle(self.checklist)
         self.formula_iter = itertools.cycle(self.formula)
         self.figure_iter = itertools.cycle(self.figure)
         self.form_iter = itertools.cycle(self.form)

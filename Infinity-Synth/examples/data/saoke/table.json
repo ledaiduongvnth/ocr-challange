@@ -1,0 +1,25 @@
+[
+  {
+    "type": "table",
+    "header_boxed": false,
+    "content": "<table>\n<tr>\n<th>DESCRIPTION OF PACKAGES AND GOODS AS STATED BY SHIPPER SHIPPER'S LOAD STOW AND COUNT SAID TO CONTAIN</th>\n<th>Marks and nos container and seals</th>\n<th>No and kind of packages</th>\n<th>NET WEIGHT</th>\n<th>MEASUREMENT</th>\n</tr>\n<tr>\n<td>120 cartons of precision electronics components (PCBs, resistors, capacitors)</td>\n<td>Container: 40ft High Cube, Seal No: G78912; Cont: 102001</td>\n<td>120 cartons, each 35cm x 25cm x 20cm</td>\n<td>48.5 kg</td>\n<td>0.850 m³</td>\n</tr>\n<tr>\n<td>35 pallets of industrial machinery parts (bearings, couplings)</td>\n<td>Container: 20ft, Seal No: G89123; Cont: 102002</td>\n<td>35 pallets, each 120cm x 100cm x 110cm</td>\n<td>187.2 kg</td>\n<td>3.850 m³</td>\n</tr>\n<tr>\n<td>500 bags of agricultural fertilizer (NPK 25-5-10)</td>\n<td>Container: 40ft, Seal No: G90124; Cont: 102003</td>\n<td>500 bags, each 50cm x 40cm x 30cm</td>\n<td>1500.0 kg</td>\n<td>6.000 m³</td>\n</tr>\n<tr>\n<td>200 crates of fresh produce (apples, Grade B)</td>\n<td>Container: 20ft, Seal No: G91125; Cont: 102004</td>\n<td>200 crates, each 45cm x 35cm x 25cm</td>\n<td>125.5 kg</td>\n<td>3.500 m³</td>\n</tr>\n<tr>\n<td>15 drums of chemical solvent (Acetone, UN1177)</td>\n<td>Container: 40ft, Seal No: G92126; Cont: 102005</td>\n<td>15 drums, each 55cm x 45cm x 45cm</td>\n<td>187.5 kg</td>\n<td>3.750 m³</td>\n</tr>\n<tr>\n<td>80 cartons of medical equipment (surgical instruments)</td>\n<td>Container: 20ft, Seal No: G93127; Cont: 102006</td>\n<td>80 cartons, each 40cm x 30cm x 25cm</td>\n<td>65.0 kg</td>\n<td>0.900 m³</td>\n</tr>\n<tr>\n<td>40 pallets of textiles (polyester fabrics, 100% fiber)</td>\n<td>Container: 40ft, Seal No: G94128; Cont: 102007</td>\n<td>40 pallets, each 120cm x 100cm x 80cm</td>\n<td>200.0 kg</td>\n<td>3.500 m³</td>\n</tr>\n</table>"
+  },
+  {
+    "type": "table",
+    "html": "<table><thead><tr><th>消融设置</th><th>是否启用</th></tr></thead><tbody><tr><td>OCR信息</td><td>是</td></tr><tr><td>结构化特征</td><td>否</td></tr></tbody></table>",
+    "caption": "模型消融实验的配置示例。",
+    "footnote": "单变量控制。"
+  },
+  {
+    "type": "table",
+    "html": "<table><thead><tr><th>硬件</th><th>显存</th><th>数量</th></tr></thead><tbody><tr><td>A800</td><td>80GB</td><td>4</td></tr><tr><td>H800</td><td>80GB</td><td>8</td></tr></tbody></table>",
+    "caption": "实验所使用的主要计算资源。",
+    "footnote": "混合精度训练。"
+  },
+  {
+    "type": "table",
+    "html": "<table><thead><tr><th>阶段</th><th>耗时(min)</th></tr></thead><tbody><tr><td>训练</td><td>180</td></tr><tr><td>评估</td><td>25</td></tr></tbody></table>",
+    "caption": "模型训练与评估阶段的时间开销。",
+    "footnote": "单次完整实验。"
+  }
+]

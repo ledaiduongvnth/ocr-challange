@@ -56,6 +56,9 @@ def pipeline(title: List[dict], text: List[dict], table: List[dict], formula: Li
         print(cross_column_paragraphs)
         if cross_column_paragraphs is not None:
             location_info = extract_form_from_json(save_image_path, cross_column_paragraphs)
+            if not location_info.get("form"):
+                print(f"Process id {process_id}, skipped empty form")
+                continue
             all_data.append(location_info)
             data_counter += 1
             total_count += 1
@@ -69,4 +72,3 @@ def pipeline(title: List[dict], text: List[dict], table: List[dict], formula: Li
             print(f"Process id {process_id}, Acc {total_count}")
     save_data_to_file(all_data, output_gt_path)
     render.close()
-

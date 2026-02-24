@@ -1,0 +1,31 @@
+{
+  "FreeText1": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\nXÁC NHẬN SỐ DƯ TÀI KHOẢN\nCONFIRMATION OF ACCOUNT BALANCE\nKính gửi: Các cơ quan hữu quan\nTo whom It may concerns,\nNgân hàng Thương mại Cổ phần Đại Chúng Việt Nam, PVcomBank Bình Chánh xác nhận các thông tin dưới đây tính đến thời điểm 10h55, ngày 22 tháng 03 năm 2022.\nWe, Vietnam Public Joint-stock Commercial Bank (PVcomBank), PVcomBank Binh Chanh hereby confirm the following information at 10h55 on 22th March 2022.",
+  "Tên khách hàng (Customer's name)": "NGUYỄN",
+  "Địa chỉ (Address)": ", Nguyễn Cư Trinh, Quận 1, TP. HCM",
+  "Số CMND/CCCD/Hộ chiếu (ID No./ Passport No.)": "05609",
+  "Ngày cấp (Date of issue)": "21/12/2021",
+  "Nơi cấp (Place of issue)": "CTCCS QLHC về TTXH",
+  "FreeText2": "Đang có Tài khoản/Thẻ tiết kiệm/Hợp đồng tiền gửi tại Ngân hàng Thương mại Cổ phần Đại Chúng Việt Nam với chi tiết như sau.\nHas current accounts/saving accounts/deposit contracts with our bank as follows:",
+  "Table1": [
+    {
+      "SỐ TÀI KHOẢN (ACCOUNT NO.)": "40800",
+      "SỐ SERI/SỐ HDTG (SERIAL NO./CONTRACT NO.)": "2547043",
+      "NGÀY MỞ (START DATE)": "17/05/2021",
+      "KỲ HẠN (TERM)": "015M",
+      "LOẠI TIỀN (CURRENCY)": "VND",
+      "SỐ DƯ (BALANCE)": "500,000,000 VND"
+    },
+    {
+      "SỐ TÀI KHOẢN (ACCOUNT NO.)": "4440C",
+      "SỐ SERI/SỐ HDTG (SERIAL NO./CONTRACT NO.)": "2547044",
+      "NGÀY MỞ (START DATE)": "02/10/2021",
+      "KỲ HẠN (TERM)": "015M",
+      "LOẠI TIỀN (CURRENCY)": "VND",
+      "SỐ DƯ (BALANCE)": "510,000,000 VND"
+    },
+    {
+      "Tổng cộng (Total)": "1,010,000,000 VND"
+    }
+  ],
+  "FreeText3": "Số tiền bằng chữ (In word): Một tỷ không trăm mười triệu đồng chẵn(One Billion Ten Million VND)\nTương đương(Equal): USD 44,201.31\nBằng chữ: Bốn mươi bốn nghìn hai trăm linh một đô la Mỹ và ba mươi một cent\nIn word: Forty Four Thousand Two Hundred One point Thirty One USD\n* Tỷ giá (exchange rate): 22,850 VND/USD\nNgày (Date) 22 tháng (month) 03 năm (year) 2022\nNgân hàng Thương mại Cổ phần Đại Chúng Việt Nam\nVietnam Public Joint-stock Commercial Bank (PVcomBank)\n(Chữ ký và dấu - Authorised signature & seal)\nBùi Thị Thủy\n1900 5555 92\nPVcomBank.com.vn"
+}

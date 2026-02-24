@@ -1,0 +1,107 @@
+<a id='d95e9512-8aa2-4913-be19-7e33925f36e8'></a>
+
+<::logo: PVcomBank
+PVcom Bank
+Blue and orange text with a blue and orange geometric diamond-like symbol::>
+
+<a id='e39447fa-529d-4dff-830d-04a3528059db'></a>
+
+XÁC NHẬN SỐ DƯ TÀI KHOẢN
+CONFIRMATION OF ACCOUNT BALANCE
+
+<a id='fe606f8a-c0fe-481d-a4d6-264031ac70cf'></a>
+
+Kính gửi: Các cơ quan hữu quan
+To whom It may concerns,
+Ngân hàng Thương mại Cổ phần Đại Chúng Việt Nam, PVcomBank Bình Chánh xác nhận các thông tin dưới đây
+tính đến thời điểm 10h55, ngày 22 tháng 03 năm 2022.
+
+<a id='8ffc90ea-cc89-4349-965e-6768e41fef10'></a>
+
+We, Vietnam Public Joint-stock Commercial Bank (PVcomBank), PVcomBank Binh Chanh hereby confirm the following information at 10h55 on 22th March 2022.
+
+<a id='768fd36e-f6b0-485d-80db-30d9bdb0c97b'></a>
+
+Tên khách hàng (Customer's name): NGUYỄN
+Địa chỉ (Address): ,
+Nguyễn Cư Trinh, Quận 1, TP. HCM
+Số CMND/CCCD/Hộ chiếu (ID No./ Passport No.): 05605
+Ngày cấp (Date of issue): 21/12/2021
+Nơi cấp (Place of issue): CTCCS QLHC về TTXH
+
+<a id='60d8c1ef-8e41-48e3-84ff-cead3112bdcb'></a>
+
+Đang có Tài khoản/Thẻ tiết kiệm/Hợp đồng tiền gửi tại Ngân hàng Thương mại Cổ phần Đại Chúng Việt Nam
+với chi tiết như sau.
+
+<a id='f194819b-b2b7-405b-bc07-72a16af852f5'></a>
+
+*Has current accounts/saving accounts/deposit contracts with our bank as follows:*
+
+<a id='1931e2b6-b338-4cbb-b636-5e00cca01850'></a>
+
+<table id="0-1">
+<tr><td id="0-2">SỐ TÀI KHOẢN (ACCOUNT NO.)</td><td id="0-3">SÓ SERI/SÓ HĐTG (SERIAL NO./CONTRACT NO.)</td><td id="0-4">NGÀY MỞ (START DATE)</td><td id="0-5">KỲ HẠN (TERM)</td><td id="0-6">LOẠITIỀN (CURRENCY)</td><td id="0-7">SỐ DƯ (BALANCE)</td></tr>
+<tr><td id="0-8">40800</td><td id="0-9">2547043</td><td id="0-a">17/05/2021</td><td id="0-b">015M</td><td id="0-c">VND</td><td id="0-d">500,000,000 VND</td></tr>
+<tr><td id="0-e">44400</td><td id="0-f">2547044</td><td id="0-g">02/10/2021</td><td id="0-h">015M</td><td id="0-i">VND</td><td id="0-j">510,000,000 VND</td></tr>
+</table>
+
+<a id='fc244dc6-eb22-481b-89f5-085be6bd341e'></a>
+
+Tổng cộng (Total): 1,010,000,000 VND
+Số tiền bằng chữ (In word): Một tỷ không trăm mười triệu đồng chẵn(One Billion Ten Million VND)
+
+Tương đương(Equal): USD 44,201.31
+Bằng chữ: Bốn mươi bốn nghìn hai trăm linh một đô la Mỹ và ba mươi mốt cent
+In word: Forty Four Thousand Two Hundred One point Thirty One USD
+
+* Tỷ giá (exchange rate): 22,850 VND/USD
+
+<a id='dd0bd6b2-1fed-4ba8-bcf4-a0b6c7acb1b1'></a>
+
+<::attestation: Official Stamp/Seal
+Status: Authorised
+Signature: Not visible
+Readable Text: Ngày (Date) 22 tháng (month) 03 năm (year) 2022
+Ngân hàng Thương mại Cổ phần Đại Chúng Việt Nam
+Vietnam Public Joint-Stock Commercial Bank (PVcomBank)
+(Chữ ký và dấu-Authorised signature & seal)
+THƯƠNG MẠI CỔ PHẦN
+ĐẠI CHÚNG VIỆT NAM
+Stamp Text: NGÂN HÀNG S.I.N: 381057919
+Description: A red circular stamp partially obscures the bank name and the phrase 'Authorised signature & seal' in the center of the image.::>
+
+<a id='70a671e2-5e71-41d9-a831-12111a921c62'></a>
+
+<::attestation: Official stamp, handwritten signature, printed name
+Stamped, signed
+Signature: illegible
+Readable Text: M.S. N: 0105791
+NGÂN HÀNG
+THƯƠNG MẠI CỔ PHẦN
+ĐẠI CHÚNG VIỆT NAM
+- CHI NHÁNH GIA ĐÌNH
+- PHÒNG GIAO DỊCH
+BÌNH CHÁNH
+QUẬN 11 - TP HỒ CHÍ MINH
+Bùi Thị Thúy
+A circular red ink stamp is centrally positioned, partially overlapping with a blue handwritten signature. Below the signature, the name "Bùi Thị Thúy" is printed in red script font.
+::>
+
+<a id='12a73ec3-5bfc-4b77-ab93-7b8664bc4e54'></a>
+
+<::attestation: Signature
+Signed
+Signature: legible
+Readable Text: Bùi Thị Thúy
+The text "Bùi Thị Thúy" is written in a decorative, cursive red font, centrally located on a white background.
+::>
+
+<a id='4d81a98d-78c6-436d-9d85-7d1cbe247522'></a>
+
+<::illustration: A stylized yellow shape, possibly part of a conical hat (nón lá), with curved and straight edges. A rectangular white area is cut into the yellow shape. Above the yellow shape, there is a thin blue line and red, stylized text that reads "i Thúy".::>
+
+<a id='b4ef14b1-67b4-45ed-8aa4-aa2c364c2aa4'></a>
+
+1900 5555 92
+PVcomBank.com.vn

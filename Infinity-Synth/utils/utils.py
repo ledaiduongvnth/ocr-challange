@@ -175,7 +175,16 @@ def extract_form_from_json(image_path, json_data, scale=1):
             position["y"] + position["height"],
         ]
         bbox = [i * scale for i in bbox]
-        if calculate_area(bbox) == 0:
+        area = calculate_area(bbox)
+        if area == 0 and element_type not in [
+            "section_title",
+            "text",
+            "formula",
+            "formula_caption",
+            "MathJax",
+            "table",
+            "list-item",
+        ]:
             continue
         if element_type == "section_title" and content:
             page_form["form"].append(
@@ -183,7 +192,7 @@ def extract_form_from_json(image_path, json_data, scale=1):
                     "category": "title",
                     "level": element.get("level"),
                     "bbox": bbox,
-                    "area": calculate_area(bbox),
+                    "area": area,
                     "text": content,
                 }
             )
@@ -195,21 +204,8 @@ def extract_form_from_json(image_path, json_data, scale=1):
                 {
                     "category": category,
                     "bbox": bbox,
-                    "area": calculate_area(bbox),
+                    "area": area,
                     "text": content,
-                }
-            )
-
-        elif element_type == "figure" and "src" in element:
-            src = element.get("src", "").strip()
-            alt = element.get("alt", "Image").strip()
-            page_form["form"].append(
-                {
-                    "category": "figure",
-                    "bbox": bbox,
-                    "area": calculate_area(bbox),
-                    "text": alt,
-                    "src": src,
                 }
             )
 
@@ -220,7 +216,7 @@ def extract_form_from_json(image_path, json_data, scale=1):
                 {
                     "category": "table",
                     "bbox": bbox,
-                    "area": calculate_area(bbox),
+                    "area": area,
                     "text": content,
                     "src": src,
                 }
@@ -232,7 +228,7 @@ def extract_form_from_json(image_path, json_data, scale=1):
                 {
                     "category": category,
                     "bbox": bbox,
-                    "area": calculate_area(bbox),
+                    "area": area,
                     "text": content,
                     "flag": "unordered_list",
                 }

@@ -140,6 +140,16 @@ class chrome_render:
                 pageFootnote: []
             };
 
+            const pageRoot = document.querySelector('.a4-page');
+            if (pageRoot) {
+                pageRoot.classList.remove('table-only');
+                Array.from(pageRoot.querySelectorAll('.block:not(.table_outer)')).forEach((el) => {
+                    el.style.setProperty('display', 'block', 'important');
+                });
+                // Force style/layout flush before bbox reads.
+                void pageRoot.offsetHeight;
+            }
+
             let container = document.querySelector('.main_content');
             if (container) {
                 Array.from(container.children).forEach((node) => {
@@ -259,21 +269,105 @@ class chrome_render:
                                 
                                 }
 
-                        } else if (node.tagName.toLowerCase() === 'img') { 
-                            const imgPosition = node.getBoundingClientRect();  
+                        } else if (node.classList.contains('block') && !node.classList.contains('table_outer')) {
 
-                            pageData.containerElements.push({
-                                type: 'figure',
-                                src: node.src,
-                                alt: node.alt,
-                                position: {
-                                    x: imgPosition.left,
-                                    y: imgPosition.top,
-                                    width: imgPosition.width,
-                                    height: imgPosition.height
+                                const headingNodes = Array.from(node.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+                                headingNodes.forEach((heading) => {
+                                    const titleText = heading.textContent.trim();
+                                    const titlePosition = heading.getBoundingClientRect();
+                                    if (!titleText || titlePosition.width <= 0 || titlePosition.height <= 0) {
+                                        return;
+                                    }
+                                    const level = parseInt(heading.tagName.substring(1), 10) || 3;
+                                    pageData.containerElements.push({
+                                        type: 'section_title',
+                                        level: level,
+                                        content: titleText,
+                                        position: {
+                                            x: titlePosition.left,
+                                            y: titlePosition.top,
+                                            width: titlePosition.width,
+                                            height: titlePosition.height
+                                        }
+                                    });
+                                });
+
+                                const textNodes = Array.from(node.querySelectorAll('p'));
+                                textNodes.forEach((ele) => {
+                                    let type = (ele.classList && ele.classList.length > 0) ? ele.classList[0] : 'text';
+                                    if (type === "formula" || type === "inline_formula") {
+                                        const rect_formula = ele.getBoundingClientRect();
+                                        const latex = ele.getAttribute('data-latex');
+                                        if (rect_formula.width > 0 && rect_formula.height > 0) {
+                                            pageData.containerElements.push({
+                                                type: 'formula',
+                                                content: latex,
+                                                position: rect_formula
+                                            });
+                                        }
+                                    } else {
+                                        const paragraphRects = Array.from(ele.getClientRects());
+                                        paragraphRects.forEach((rect, i) => {
+                                            const isCrossColumn = paragraphRects.length > 1 && rect.width < ele.offsetWidth;
+                                            let range = document.createRange();
+                                            let startRange = document.caretRangeFromPoint(rect.left + 1, rect.top + 1);
+                                            let endRange = document.caretRangeFromPoint(rect.right - 1, rect.bottom - 1);
+
+                                            if (startRange && endRange) {
+                                                if (startRange.startContainer === endRange.endContainer) {
+                                                    range.setStart(startRange.startContainer, startRange.startOffset);
+                                                    range.setEnd(endRange.endContainer, endRange.endOffset);
+                                                } else {
+                                                    range.setStart(startRange.startContainer, startRange.startOffset);
+                                                    range.setEnd(startRange.startContainer, startRange.startContainer.length);
+                                                }
+
+                                                const text = range.toString().trim();
+                                                if (text.length > 0) {
+                                                    pageData.containerElements.push({
+                                                        type: type,
+                                                        isCrossColumn: isCrossColumn,
+                                                        part: `part3 ${i + 1}`,
+                                                        content: text,
+                                                        position: rect
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+
+                                // Fallback for text blocks rendered as div/span without <p>.
+                                if (textNodes.length === 0) {
+                                    const fallbackPieces = [];
+                                    Array.from(node.children).forEach((child) => {
+                                        const tag = child.tagName ? child.tagName.toLowerCase() : '';
+                                        if (tag === 'img' || tag === 'table' || tag === 'p' || /^h[1-6]$/.test(tag)) {
+                                            return;
+                                        }
+                                        const part = (child.textContent || '').trim();
+                                        if (part.length > 0) {
+                                            fallbackPieces.push(part);
+                                        }
+                                    });
+
+                                    let fallbackText = fallbackPieces.join('\\n').trim();
+                                    if (!fallbackText) {
+                                        fallbackText = (node.textContent || '').trim();
+                                    }
+
+                                    if (fallbackText.length > 0) {
+                                        const blockRect = node.getBoundingClientRect();
+                                        pageData.containerElements.push({
+                                            type: 'text',
+                                            isCrossColumn: false,
+                                            part: 'block_fallback',
+                                            content: fallbackText,
+                                            position: blockRect
+                                        });
+                                    }
                                 }
-                            });
-                            
+
                         } else if (node.classList.contains('formula-block')) { 
                         
                         
@@ -344,7 +438,10 @@ class chrome_render:
                                         });
 
                                       } else {
-                                        const tableElement = ele.querySelector('table'); 
+                                        const tableElement =
+                                          (ele.tagName && ele.tagName.toLowerCase() === 'table')
+                                            ? ele
+                                            : ele.querySelector('table');
                                         if (tableElement) {
                                           const tableRects = tableElement.getClientRects(); 
                                           for (let i = 0; i < tableRects.length; i++) {

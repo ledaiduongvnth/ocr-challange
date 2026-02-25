@@ -11,8 +11,8 @@ from landingai_ade import LandingAIADE
 
 # --- CONFIGURATION ---
 # The SDK uses VISION_AGENT_API_KEY by default, but we pass it explicitly.
-LANDING_AI_API_KEY = "OGp4NGJ5ajlnN2Q3cnlpMGQ5bnlsOm1aTVpBdDFlOHNzazVBSnFIR1I2OVlqanNjN2gydUwx"
-GEMINI_API_KEY = "AIzaSyCo_GQbT5ttt331IWqck_G7EreGgC9AnD8"
+LANDING_AI_API_KEY = ""
+GEMINI_API_KEY = ""
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 LANDING_RAW_MD_SUBDIR = "md"
 LANDING_RAW_JSON_SUBDIR = "json"
@@ -52,6 +52,7 @@ def is_fatal_api_error(error: Exception) -> bool:
             "ACCESS_DENIED",
             "FORBIDDEN",
             "INVALID_AUTH",
+            "UNAVAILABLE",
         )
     ):
         return True
@@ -63,7 +64,32 @@ def is_fatal_api_error(error: Exception) -> bool:
         return True
 
     # Numeric auth status hints.
-    if any(code in message_blob for code in (" 401 ", " 403 ", "CODE': 401", "CODE': 403", '"CODE": 401', '"CODE": 403')):
+    if any(
+        code in message_blob
+        for code in (
+            " 401 ",
+            " 403 ",
+            " 429 ",
+            " 500 ",
+            " 502 ",
+            " 503 ",
+            " 504 ",
+            "CODE': 401",
+            "CODE': 403",
+            "CODE': 429",
+            "CODE': 500",
+            "CODE': 502",
+            "CODE': 503",
+            "CODE': 504",
+            '"CODE": 401',
+            '"CODE": 403',
+            '"CODE": 429',
+            '"CODE": 500',
+            '"CODE": 502',
+            '"CODE": 503',
+            '"CODE": 504',
+        )
+    ):
         return True
 
     # Structured status code hints on exception objects.
@@ -74,7 +100,7 @@ def is_fatal_api_error(error: Exception) -> bool:
                 numeric = int(value)
             except (TypeError, ValueError):
                 continue
-            if numeric in (401, 403):
+            if numeric in (401, 403, 429, 500, 502, 503, 504):
                 return True
 
     return False

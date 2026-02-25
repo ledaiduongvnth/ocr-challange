@@ -11,8 +11,8 @@ from landingai_ade import LandingAIADE
 
 # --- CONFIGURATION ---
 # The SDK uses VISION_AGENT_API_KEY by default, but we pass it explicitly.
-LANDING_AI_API_KEY = ""
-GEMINI_API_KEY = ""
+LANDING_AI_API_KEY = "OGp4NGJ5ajlnN2Q3cnlpMGQ5bnlsOm1aTVpBdDFlOHNzazVBSnFIR1I2OVlqanNjN2gydUwx"
+GEMINI_API_KEY = "AIzaSyCo_GQbT5ttt331IWqck_G7EreGgC9AnD8"
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 LANDING_RAW_MD_SUBDIR = "md"
 LANDING_RAW_JSON_SUBDIR = "json"
@@ -20,6 +20,65 @@ LANDING_RAW_JSON_SUBDIR = "json"
 # Initialize clients.
 landing_client = LandingAIADE(apikey=LANDING_AI_API_KEY)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+
+
+class FatalPipelineError(RuntimeError):
+    """Raised when the pipeline should stop immediately."""
+
+
+def _flatten_error_chain(error: Exception) -> list[Exception]:
+    """Collect exception + chained exceptions for better classification."""
+    chain: list[Exception] = []
+    seen: set[int] = set()
+    current: Exception | None = error
+    while current is not None and id(current) not in seen:
+        chain.append(current)
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return chain
+
+
+def is_fatal_api_error(error: Exception) -> bool:
+    """Detect API/auth errors where retrying next files is pointless."""
+    chain = _flatten_error_chain(error)
+    message_blob = " | ".join(str(err) for err in chain).upper()
+
+    # Common explicit status names.
+    if any(
+        token in message_blob
+        for token in (
+            "PERMISSION_DENIED",
+            "UNAUTHENTICATED",
+            "ACCESS_DENIED",
+            "FORBIDDEN",
+            "INVALID_AUTH",
+        )
+    ):
+        return True
+
+    # API key/token problems from different providers.
+    if any(token in message_blob for token in ("API KEY", "API_KEY", "TOKEN")) and any(
+        keyword in message_blob for keyword in ("LEAK", "INVALID", "REVOK", "EXPIRE", "DISABLE", "MISSING", "NOT VALID")
+    ):
+        return True
+
+    # Numeric auth status hints.
+    if any(code in message_blob for code in (" 401 ", " 403 ", "CODE': 401", "CODE': 403", '"CODE": 401', '"CODE": 403')):
+        return True
+
+    # Structured status code hints on exception objects.
+    for err in chain:
+        for attr in ("status_code", "code", "http_status"):
+            value = getattr(err, attr, None)
+            try:
+                numeric = int(value)
+            except (TypeError, ValueError):
+                continue
+            if numeric in (401, 403):
+                return True
+
+    return False
+
 
 def upload_to_gemini(file_path: Path):
     """Upload a file to Gemini and wait until processing is complete."""
@@ -240,6 +299,8 @@ def process_document(
         print(f"[SUCCESS] Saved prediction to {output_path}")
         return True
     except Exception as error:  # noqa: BLE001
+        if is_fatal_api_error(error):
+            raise FatalPipelineError(f"Fatal API/auth error while processing {target_file}: {error}") from error
         print(f"[FAILED] Error processing {target_file}: {error}")
         return False
 
@@ -344,16 +405,24 @@ if __name__ == "__main__":
         target_file = args.target_file.expanduser().resolve()
         if not target_file.exists():
             parser.error(f"Target file not found: {target_file}")
-        process_document(target_file, example_file, output_dir, prompts_dir, landing_raw_dir)
+        try:
+            process_document(target_file, example_file, output_dir, prompts_dir, landing_raw_dir)
+        except FatalPipelineError as fatal_error:
+            print(f"[FATAL] {fatal_error}")
+            raise SystemExit(1) from fatal_error
     else:
         target_dir = (args.target_dir or (script_dir / "images")).expanduser().resolve()
         if not target_dir.exists() or not target_dir.is_dir():
             parser.error(f"Target directory not found: {target_dir}")
-        process_folder(
-            target_dir,
-            example_file,
-            output_dir,
-            prompts_dir,
-            landing_raw_dir,
-            recursive=args.recursive,
-        )
+        try:
+            process_folder(
+                target_dir,
+                example_file,
+                output_dir,
+                prompts_dir,
+                landing_raw_dir,
+                recursive=args.recursive,
+            )
+        except FatalPipelineError as fatal_error:
+            print(f"[FATAL] {fatal_error}")
+            raise SystemExit(1) from fatal_error

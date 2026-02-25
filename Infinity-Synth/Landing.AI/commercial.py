@@ -14,6 +14,8 @@ from landingai_ade import LandingAIADE
 LANDING_AI_API_KEY = ""
 GEMINI_API_KEY = ""
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+LANDING_RAW_MD_SUBDIR = "md"
+LANDING_RAW_JSON_SUBDIR = "json"
 
 # Initialize clients.
 landing_client = LandingAIADE(apikey=LANDING_AI_API_KEY)
@@ -128,6 +130,21 @@ def _to_jsonable(value: Any) -> Any:
     return repr(value)
 
 
+def get_landing_raw_dirs(landing_raw_dir: Path) -> tuple[Path, Path]:
+    """Return subfolders for markdown and JSON Landing AI raw artifacts."""
+    markdown_dir = landing_raw_dir / LANDING_RAW_MD_SUBDIR
+    response_json_dir = landing_raw_dir / LANDING_RAW_JSON_SUBDIR
+    return markdown_dir, response_json_dir
+
+
+def get_landing_raw_paths(target_file: Path, landing_raw_dir: Path) -> tuple[Path, Path]:
+    """Return markdown and full-response artifact paths using subfolder layout."""
+    markdown_dir, response_json_dir = get_landing_raw_dirs(landing_raw_dir)
+    raw_markdown_path = markdown_dir / f"{target_file.stem}.md"
+    raw_response_path = response_json_dir / f"{target_file.stem}.landing.json"
+    return raw_markdown_path, raw_response_path
+
+
 def save_landing_raw_output(
     target_file: Path,
     landing_markdown: str,
@@ -135,18 +152,59 @@ def save_landing_raw_output(
     landing_raw_dir: Path,
 ) -> tuple[Path, Path]:
     """Persist markdown and full Landing AI response for later inspection/debug."""
-    landing_raw_dir.mkdir(parents=True, exist_ok=True)
-
-    raw_markdown_path = landing_raw_dir / f"{target_file.stem}.md"
+    raw_markdown_path, raw_response_path = get_landing_raw_paths(target_file=target_file, landing_raw_dir=landing_raw_dir)
+    raw_markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_response_path.parent.mkdir(parents=True, exist_ok=True)
     raw_markdown_path.write_text(landing_markdown, encoding="utf-8")
 
-    raw_response_path = landing_raw_dir / f"{target_file.stem}.landing.json"
     serializable_response = _to_jsonable(landing_response)
     raw_response_path.write_text(json.dumps(serializable_response, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"[SAVED] Landing AI markdown: {raw_markdown_path}")
     print(f"[SAVED] Landing AI full response: {raw_response_path}")
     return raw_markdown_path, raw_response_path
+
+
+def get_output_paths(target_file: Path, output_dir: Path, landing_raw_dir: Path) -> tuple[Path, Path, Path]:
+    """Return all generated artifact paths for one target input."""
+    prediction_json_path = output_dir / f"{target_file.stem}.json"
+    raw_markdown_path, raw_response_path = get_landing_raw_paths(target_file=target_file, landing_raw_dir=landing_raw_dir)
+    return prediction_json_path, raw_markdown_path, raw_response_path
+
+
+def should_skip_target(target_file: Path, output_dir: Path, landing_raw_dir: Path) -> bool:
+    """Skip work for this input if label output already exists."""
+    prediction_json_path, raw_markdown_path, raw_response_path = get_output_paths(
+        target_file=target_file,
+        output_dir=output_dir,
+        landing_raw_dir=landing_raw_dir,
+    )
+    # Legacy flat files are still accepted for resume behavior after layout changes.
+    legacy_markdown_path = landing_raw_dir / f"{target_file.stem}.md"
+    legacy_response_path = landing_raw_dir / f"{target_file.stem}.landing.json"
+    has_current_md = raw_markdown_path.exists()
+    has_current_json = raw_response_path.exists()
+    has_legacy_md = legacy_markdown_path.exists()
+    has_legacy_json = legacy_response_path.exists()
+
+    if prediction_json_path.exists():
+        md_status = (
+            str(raw_markdown_path.relative_to(landing_raw_dir))
+            if has_current_md
+            else (f"{legacy_markdown_path.name} (legacy)" if has_legacy_md else "missing")
+        )
+        json_status = (
+            str(raw_response_path.relative_to(landing_raw_dir))
+            if has_current_json
+            else (f"{legacy_response_path.name} (legacy)" if has_legacy_json else "missing")
+        )
+        print(
+            "[SKIP] Label already exists for "
+            f"{target_file.name}: {prediction_json_path.name} | raw_md={md_status} | raw_json={json_status}"
+        )
+        return True
+
+    return False
 
 
 def process_document(
@@ -158,6 +216,9 @@ def process_document(
 ) -> bool:
     """Process one target document and write JSON + raw Landing AI OCR output."""
     try:
+        if should_skip_target(target_file=target_file, output_dir=output_dir, landing_raw_dir=landing_raw_dir):
+            return True
+
         target_ocr, landing_response = extract_markdown_with_landing_ai(target_file)
         save_landing_raw_output(
             target_file=target_file,
@@ -173,7 +234,7 @@ def process_document(
             prompts_dir=prompts_dir,
         )
 
-        output_path = output_dir / f"{target_file.stem}.json"
+        output_path, _, _ = get_output_paths(target_file=target_file, output_dir=output_dir, landing_raw_dir=landing_raw_dir)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(final_json, ensure_ascii=False, indent=4), encoding="utf-8")
         print(f"[SUCCESS] Saved prediction to {output_path}")
@@ -272,6 +333,12 @@ if __name__ == "__main__":
         parser.error(f"Example file not found: {example_file}")
     if not prompts_dir.exists():
         parser.error(f"Prompts directory not found: {prompts_dir}")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    landing_raw_dir.mkdir(parents=True, exist_ok=True)
+    landing_markdown_dir, landing_response_json_dir = get_landing_raw_dirs(landing_raw_dir=landing_raw_dir)
+    landing_markdown_dir.mkdir(parents=True, exist_ok=True)
+    landing_response_json_dir.mkdir(parents=True, exist_ok=True)
 
     if args.target_file:
         target_file = args.target_file.expanduser().resolve()

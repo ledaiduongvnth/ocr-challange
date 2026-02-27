@@ -32,8 +32,10 @@ class TrainConfig:
     label_subdir: str = "label"
     label_extension: str = os.getenv("OCR_TRAIN_LABEL_EXT", ".json")
     save_model_dir: str = "./model"
-    max_length: int = 1024
+    max_length: int = int(os.getenv("OCR_MAX_LENGTH", "3072"))
     longest_edge: int = 700
+    strict_no_truncation: bool = os.getenv("OCR_STRICT_NO_TRUNCATION", "1") == "1"
+    eval_max_new_tokens: int = int(os.getenv("OCR_EVAL_MAX_NEW_TOKENS", "2048"))
     train_ratio: float = 0.85
     val_ratio: float = 0.10
     eval_samples: int = 100
@@ -184,6 +186,7 @@ def evaluate_model(
     device: torch.device,
     max_length: int,
     longest_edge: int,
+    max_new_tokens: int,
     num_samples: int = 50,
     batch_size: int = 8,
     description: str = "Model",
@@ -222,7 +225,7 @@ def evaluate_model(
         if "pixel_values" in inputs and device.type == "cuda":
             inputs["pixel_values"] = inputs["pixel_values"].to(torch.bfloat16)
 
-        outputs = model.generate(**inputs, max_new_tokens=512, do_sample=False)
+        outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
         input_length = inputs["input_ids"].shape[1]
         generated_ids = outputs[:, input_length:]
 
@@ -244,7 +247,13 @@ def evaluate_model(
     return {"cer": cer_score, "wer": wer_score, "perfect_matches": perfect_matches}
 
 
-def build_collate_fn(processor: LightOnOcrProcessor, max_length: int, longest_edge: int, use_bf16: bool):
+def build_collate_fn(
+    processor: LightOnOcrProcessor,
+    max_length: int,
+    longest_edge: int,
+    use_bf16: bool,
+    strict_no_truncation: bool,
+):
     def collate_fn(examples):
         batch_messages = []
         batch_images = []
@@ -274,12 +283,29 @@ def build_collate_fn(processor: LightOnOcrProcessor, max_length: int, longest_ed
             for messages in batch_messages
         ]
 
+        token_lengths = [
+            len(input_ids)
+            for input_ids in processor.tokenizer(
+                texts,
+                add_special_tokens=False,
+                truncation=False,
+            )["input_ids"]
+        ]
+        overlength = [(idx, length) for idx, length in enumerate(token_lengths) if length > max_length]
+        if overlength and strict_no_truncation:
+            preview = ", ".join(f"{idx}:{length}" for idx, length in overlength[:5])
+            raise ValueError(
+                f"Detected {len(overlength)} overlength sample(s) in current batch for max_length={max_length}. "
+                f"Example batch_index:token_len -> {preview}. "
+                "Increase OCR_MAX_LENGTH or shorten labels."
+            )
+
         inputs = processor(
             text=texts,
             images=batch_images,
             return_tensors="pt",
             padding=True,
-            truncation=True,
+            truncation=not strict_no_truncation,
             max_length=max_length,
             size={"longest_edge": longest_edge},
         )
@@ -473,6 +499,7 @@ def main():
                 device=device,
                 max_length=config.max_length,
                 longest_edge=config.longest_edge,
+                max_new_tokens=config.eval_max_new_tokens,
                 num_samples=config.eval_samples,
                 batch_size=config.eval_batch_size,
                 description="Base",
@@ -485,6 +512,7 @@ def main():
             device=device,
             max_length=config.max_length,
             longest_edge=config.longest_edge,
+            max_new_tokens=config.eval_max_new_tokens,
             num_samples=config.eval_samples,
             batch_size=config.eval_batch_size,
             description="Base",
@@ -498,6 +526,7 @@ def main():
         max_length=config.max_length,
         longest_edge=config.longest_edge,
         use_bf16=use_bf16,
+        strict_no_truncation=config.strict_no_truncation,
     )
 
     train_ds_for_fit = subset_or_full(train_ds, config.train_subset_size)
@@ -513,6 +542,8 @@ def main():
     )
 
     print(f"Output directory: {config.output_dir}")
+    print(f"Max input length: {config.max_length}")
+    print(f"Strict no truncation: {config.strict_no_truncation}")
     print(
         "Effective batch size: "
         f"{training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}"
@@ -535,6 +566,7 @@ def main():
         device=device,
         max_length=config.max_length,
         longest_edge=config.longest_edge,
+        max_new_tokens=config.eval_max_new_tokens,
         num_samples=config.eval_samples,
         batch_size=config.eval_batch_size,
         description="Finetuned",

@@ -165,10 +165,8 @@ def html_table_to_matrix(html: str) -> list[list[str]]:
                     matrix.append([None] * max_cols)
 
                 for c in range(col_idx, min(col_idx + colspan, max_cols)):
-                    if r == row_idx and c == col_idx:
-                        matrix[r][c] = cell_text
-                    else:
-                        matrix[r][c] = ""
+                    # Duplicate merged-cell value across covered cells to preserve layout semantics.
+                    matrix[r][c] = cell_text
 
             col_idx += colspan
 
@@ -243,6 +241,22 @@ KV_MARKER_PATTERN = re.compile(r"([^:：]{1,180}?)\s*[:：]")
 CHECKBOX_PATTERN = re.compile(r"([☑☐])\s*([^☑☐]+?)(?=(?:[☑☐])|$)")
 EMPTY_KEY_PATTERN = re.compile(r"^\s*([^:：]{1,180}?)\s*[:：]\s*$")
 KV_CHECKBOX_INLINE_PATTERN = re.compile(r"^\s*(.{1,180}?)\s+([☑☐].+)$")
+TOTAL_LINE_PATTERN = re.compile(
+    r"^\s*((?:tổng(?:\s*cộng)?|total(?:\s*(?:amount|sum))?|sum))\s*[:：\-]?\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+SECTION_HINT_PATTERN = re.compile(
+    r"(dành cho ngân hàng|for bank user only|for bank|người lĩnh tiền|receiver|đề nghị ghi nợ tài khoản|thông tin chi tiết|số tiền\s*\(with amount\))",
+    re.IGNORECASE,
+)
+FORM_GRID_BLOCK_HINT_PATTERN = re.compile(
+    r"(ký tên|signature|approval|duyệt|kiểm soát|for bank|dành cho ngân hàng|checkbox|tick)",
+    re.IGNORECASE,
+)
+HEADER_HINT_PATTERN = re.compile(
+    r"\b(date|ngày|time|reference|ref|stt|no\.?|debit|credit|balance|description|nội dung|amount|số tiền|qty|quantity|đơn giá|thành tiền|account|bank|counterparty|mô tả)\b",
+    re.IGNORECASE,
+)
 
 
 def normalize_key(key: str) -> str:
@@ -350,7 +364,17 @@ def looks_like_section_header(line: str) -> bool:
         return False
     if ":" in line or "：" in line:
         return False
+    if len(line) < 8:
+        return False
     if len(line) > 90:
+        return False
+    if SECTION_HINT_PATTERN.search(line):
+        return True
+    alpha_chars = [ch for ch in line if ch.isalpha()]
+    if not alpha_chars:
+        return False
+    upper_ratio = sum(ch.isupper() for ch in alpha_chars) / len(alpha_chars)
+    if upper_ratio < 0.8 or len(alpha_chars) < 10:
         return False
     # Avoid numeric-only or mostly numeric rows.
     alpha_count = sum(ch.isalpha() for ch in line)
@@ -362,6 +386,25 @@ def looks_like_section_header(line: str) -> bool:
     return True
 
 
+def looks_like_table_title(line: str) -> bool:
+    line = normalize_whitespace(line)
+    if not line:
+        return False
+    if ":" in line or "：" in line:
+        return False
+    if len(line) < 5 or len(line) > 120:
+        return False
+    if re.search(r"\b(table|bảng|danh sách|statement|chi tiết)\b", line, re.IGNORECASE):
+        return True
+    # Upper-ish short headings are often captions/titles.
+    alpha_chars = [ch for ch in line if ch.isalpha()]
+    if alpha_chars:
+        upper_ratio = sum(ch.isupper() for ch in alpha_chars) / len(alpha_chars)
+        if upper_ratio > 0.75 and len(alpha_chars) >= 6:
+            return True
+    return False
+
+
 def parse_empty_key_marker(line: str) -> str | None:
     match = EMPTY_KEY_PATTERN.match(normalize_whitespace(line))
     if not match:
@@ -370,19 +413,137 @@ def parse_empty_key_marker(line: str) -> str | None:
     return key or None
 
 
+def is_total_like_key(key: str) -> bool:
+    key = normalize_key(key).lower()
+    if not key:
+        return False
+    return any(token in key for token in ["tổng", "total", "sum"])
+
+
+def parse_total_line(line: str) -> tuple[str, str] | None:
+    line = normalize_whitespace(line)
+    if not line:
+        return None
+    match = TOTAL_LINE_PATTERN.match(line)
+    if not match:
+        return None
+
+    total_key = normalize_key(match.group(1))
+    total_value = normalize_whitespace(match.group(2))
+    if not total_key or not total_value:
+        return None
+    return total_key, total_value
+
+
+def cell_is_value_like(cell: str) -> bool:
+    text = normalize_whitespace(cell)
+    if not text:
+        return False
+    if "☑" in text or "☐" in text:
+        return True
+    alpha_count = sum(ch.isalpha() for ch in text)
+    digit_count = sum(ch.isdigit() for ch in text)
+    if re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", text):
+        return True
+    if digit_count > 0:
+        if alpha_count == 0:
+            return True
+        if digit_count >= 3:
+            return True
+        if digit_count > alpha_count:
+            return True
+    if re.search(r"[\$€£¥₫%]", text):
+        return True
+    if len(text) > 45:
+        return True
+    if re.match(r"^[\d,./\-()]+$", text):
+        return True
+    return False
+
+
+def cell_looks_like_header(cell: str) -> bool:
+    text = normalize_whitespace(cell)
+    if not text:
+        return False
+    if HEADER_HINT_PATTERN.search(text):
+        return True
+    if cell_is_value_like(text):
+        return False
+    if len(text.split()) <= 6 and len(text) <= 40:
+        return True
+    return False
+
+
 def is_structured_table_matrix(matrix: list[list[str]]) -> bool:
-    if not matrix or len(matrix) < 2:
+    if not matrix:
         return False
-    non_empty_counts = [
-        sum(1 for cell in row if normalize_whitespace(cell))
-        for row in matrix
-    ]
-    if not non_empty_counts:
+
+    rows = [[normalize_whitespace(cell) for cell in row] for row in matrix]
+    rows = [row for row in rows if any(row)]
+    if len(rows) < 2:
         return False
-    first_row_non_empty = non_empty_counts[0]
-    avg_non_empty = sum(non_empty_counts) / len(non_empty_counts)
-    max_non_empty = max(non_empty_counts)
-    return first_row_non_empty >= 2 and avg_non_empty >= 2.5 and max_non_empty >= 3
+
+    active_col_indices = [idx for idx in range(len(rows[0])) if any(row[idx] for row in rows)]
+    if len(active_col_indices) < 2:
+        return False
+    rows = [[row[idx] for idx in active_col_indices] for row in rows]
+
+    col_count = len(rows[0])
+    if col_count < 2:
+        return False
+
+    all_cells = [cell for row in rows for cell in row if cell]
+    if not all_cells:
+        return False
+
+    checkbox_cells = sum(1 for cell in all_cells if "☑" in cell or "☐" in cell)
+    if checkbox_cells >= 2:
+        return False
+
+    if any(FORM_GRID_BLOCK_HINT_PATTERN.search(cell) for cell in all_cells):
+        return False
+
+    header = rows[0]
+    header_non_empty = [cell for cell in header if cell]
+    if len(header_non_empty) < 2:
+        return False
+
+    header_kv_ratio = sum(1 for cell in header_non_empty if ":" in cell or "：" in cell) / len(header_non_empty)
+    if header_kv_ratio > 0.4:
+        return False
+
+    header_value_like_ratio = sum(1 for cell in header_non_empty if cell_is_value_like(cell)) / len(header_non_empty)
+    if header_value_like_ratio > 0.4:
+        return False
+
+    body = rows[1:]
+    if not body:
+        return False
+
+    body_non_empty_counts = [sum(1 for cell in row if cell) for row in body]
+    valid_record_rows = [cnt for cnt in body_non_empty_counts if cnt >= 2]
+    if len(valid_record_rows) < 2:
+        return False
+
+    if valid_record_rows:
+        min_cnt = min(valid_record_rows)
+        max_cnt = max(valid_record_rows)
+        if min_cnt == 0 or (max_cnt / max(min_cnt, 1)) > 4:
+            return False
+
+    body_cells = [cell for row in body for cell in row if cell]
+    if body_cells:
+        kv_ratio = sum(1 for cell in body_cells if ":" in cell or "：" in cell) / len(body_cells)
+        if kv_ratio > 0.5:
+            return False
+
+    # Two-column matrices are often form grids; require a clearer header signal.
+    if col_count == 2:
+        header_hint_count = sum(1 for cell in header_non_empty if cell_looks_like_header(cell))
+        if header_hint_count < 1:
+            return False
+
+    return True
 
 
 def table_matrix_to_text_lines(matrix: list[list[str]]) -> list[str]:
@@ -393,6 +554,51 @@ def table_matrix_to_text_lines(matrix: list[list[str]]) -> list[str]:
             if clean_cell:
                 lines.append(clean_cell)
     return lines
+
+
+def form_grid_matrix_to_lines(matrix: list[list[str]]) -> list[str]:
+    lines = []
+    for row in matrix:
+        cells = [normalize_whitespace(cell) for cell in row if normalize_whitespace(cell)]
+        if not cells:
+            continue
+
+        # Keep rows that are already complete key-value cells as-is.
+        if all(parse_key_value_pairs(cell)[1] for cell in cells):
+            lines.extend(cells)
+            continue
+
+        if len(cells) >= 2:
+            key = cells[0]
+            value = normalize_whitespace(" ".join(cells[1:]))
+            if value:
+                lines.append(f"{key}: {value}")
+            else:
+                lines.append(key)
+        else:
+            lines.append(cells[0])
+    return lines
+
+
+def extract_table_caption_and_matrix(matrix: list[list[str]]) -> tuple[str | None, list[list[str]]]:
+    if not matrix:
+        return None, matrix
+
+    rows = [[normalize_whitespace(cell) for cell in row] for row in matrix]
+    rows = [row for row in rows if any(row)]
+    if len(rows) < 2:
+        return None, rows
+
+    first_non_empty = [cell for cell in rows[0] if cell]
+    second_non_empty_count = sum(1 for cell in rows[1] if cell)
+    unique_first = set(first_non_empty)
+
+    # Caption pattern: first row has a single text cell, next row looks like table header.
+    if len(unique_first) == 1 and second_non_empty_count >= 2:
+        caption = normalize_key(next(iter(unique_first)))
+        return (caption if caption else None), rows[1:]
+
+    return None, rows
 
 
 def matrix_to_table_kv(matrix: list[list[str]]) -> dict:
@@ -447,9 +653,28 @@ class LabelWriter:
         self.current_section = None
         self.free_text_counter = {"__root__": 1}
         self.table_counter = {"__root__": 1}
+        self.pending_table_name = {}
+        self.last_table_key_by_scope = {}
+        self.allow_total_row_by_scope = {}
 
     def _section_scope_key(self, section: str | None) -> str:
         return section or "__root__"
+
+    def close_total_window(self, section: str | None = None):
+        if not self.nested:
+            section = None
+        scope = self._section_scope_key(section)
+        if scope in self.allow_total_row_by_scope:
+            self.allow_total_row_by_scope[scope] = False
+
+    def _ensure_unique_key(self, container: dict, base_key: str) -> str:
+        key = normalize_key(base_key) or "Field"
+        if key not in container:
+            return key
+        suffix = 2
+        while f"{key}_{suffix}" in container:
+            suffix += 1
+        return f"{key}_{suffix}"
 
     def _next_free_text_key(self, section: str | None) -> str:
         scope = self._section_scope_key(section)
@@ -503,6 +728,16 @@ class LabelWriter:
         section_key = self._ensure_section(section_name)
         if section_key:
             self.current_section = section_key
+            self.close_total_window(section_key)
+
+    def set_pending_table_name(self, title: str, section: str | None = None):
+        title = normalize_key(title)
+        if not title:
+            return
+        if not self.nested:
+            section = None
+        scope = self._section_scope_key(section)
+        self.pending_table_name[scope] = title
 
     def add_free_text(self, text: str, section: str | None = None):
         text = normalize_whitespace(text)
@@ -510,6 +745,7 @@ class LabelWriter:
             return
         if not self.nested:
             section = None
+        self.close_total_window(section)
         key = self._next_free_text_key(section)
         container = self._container(section)
         container[key] = text
@@ -517,15 +753,83 @@ class LabelWriter:
     def add_key_value(self, key: str, value, section: str | None = None):
         if not self.nested:
             section = None
+        self.close_total_window(section)
         container = self._container(section)
         add_unique_key_value(container, key, value)
 
-    def add_table(self, rows: list[dict], section: str | None = None):
+    def add_table(self, rows: list[dict], section: str | None = None, table_name: str | None = None):
         if not self.nested:
             section = None
-        key = self._next_table_key(section)
+        scope = self._section_scope_key(section)
         container = self._container(section)
+        if table_name:
+            key = self._ensure_unique_key(container, table_name)
+        else:
+            pending_name = self.pending_table_name.pop(scope, None)
+            if pending_name:
+                key = self._ensure_unique_key(container, pending_name)
+            else:
+                key = self._next_table_key(section)
         container[key] = rows
+        self.last_table_key_by_scope[scope] = key
+        self.allow_total_row_by_scope[scope] = True
+        return key
+
+    def append_total_row(self, total_key: str, total_value: str, section: str | None = None) -> bool:
+        if not self.nested:
+            section = None
+        scope = self._section_scope_key(section)
+        if not self.allow_total_row_by_scope.get(scope, False):
+            return False
+        table_key = self.last_table_key_by_scope.get(scope)
+        if not table_key:
+            return False
+
+        container = self._container(section)
+        table_rows = container.get(table_key)
+        if not isinstance(table_rows, list) or not table_rows:
+            return False
+        if not isinstance(table_rows[0], dict):
+            return False
+
+        headers = list(table_rows[0].keys())
+        if not headers:
+            return False
+
+        total_key_clean = normalize_key(total_key)
+        total_value_clean = normalize_whitespace(total_value)
+        if not total_key_clean:
+            return False
+
+        row = {h: "" for h in headers}
+
+        total_header = None
+        for h in headers:
+            hl = h.lower()
+            if "tổng" in hl or "total" in hl:
+                total_header = h
+                break
+        if total_header is None:
+            total_header = headers[0]
+        row[total_header] = total_key_clean
+
+        value_header = None
+        for h in reversed(headers):
+            hl = h.lower()
+            if any(token in hl for token in ["amount", "thành tiền", "số tiền", "total", "balance", "credit", "debit"]):
+                value_header = h
+                break
+        if value_header is None:
+            value_header = headers[-1]
+        if total_value_clean:
+            row[value_header] = total_value_clean
+
+        if table_rows and table_rows[-1] == row:
+            return True
+
+        table_rows.append(row)
+        self.allow_total_row_by_scope[scope] = True
+        return True
 
 
 def put_text_lines_into_label(writer: LabelWriter, lines: list[str]):
@@ -539,6 +843,12 @@ def put_text_lines_into_label(writer: LabelWriter, lines: list[str]):
             continue
 
         if pending_key:
+            if writer.nested and normalize_key(clean_line) == normalize_key(pending_key):
+                writer.set_current_section(pending_key)
+                inserted_any = True
+                pending_key = None
+                continue
+
             section_hint_after_pending, kv_pairs_after_pending = parse_key_value_pairs(clean_line)
             if writer.nested and kv_pairs_after_pending:
                 writer.set_current_section(pending_key)
@@ -572,13 +882,32 @@ def put_text_lines_into_label(writer: LabelWriter, lines: list[str]):
             pending_key = None
             continue
 
+        parsed_total = parse_total_line(clean_line)
+        if parsed_total:
+            total_key, total_value = parsed_total
+            target_section = writer.current_section if writer.nested else None
+            if writer.append_total_row(total_key, total_value, section=target_section):
+                inserted_any = True
+                continue
+
         if writer.nested and looks_like_section_header(clean_line):
+            writer.close_total_window(section=writer.current_section if writer.nested else None)
             writer.set_current_section(clean_line)
+            inserted_any = True
+            continue
+
+        if looks_like_table_title(clean_line):
+            writer.close_total_window(section=writer.current_section if writer.nested else None)
+            writer.set_pending_table_name(
+                clean_line,
+                section=writer.current_section if writer.nested else None,
+            )
             inserted_any = True
             continue
 
         empty_key = parse_empty_key_marker(clean_line)
         if empty_key:
+            writer.close_total_window(section=writer.current_section if writer.nested else None)
             pending_key = empty_key
             continue
 
@@ -588,6 +917,13 @@ def put_text_lines_into_label(writer: LabelWriter, lines: list[str]):
             if writer.nested and section_hint:
                 writer.set_current_section(section_hint)
                 target_section = writer.current_section
+
+            if len(kv_pairs) == 1:
+                only_key, only_value = kv_pairs[0]
+                if isinstance(only_value, str) and is_total_like_key(only_key):
+                    if writer.append_total_row(only_key, only_value, section=target_section):
+                        inserted_any = True
+                        continue
 
             for key, value in kv_pairs:
                 writer.add_key_value(key, value, section=target_section)
@@ -600,17 +936,119 @@ def put_text_lines_into_label(writer: LabelWriter, lines: list[str]):
             "\n".join(orphan_lines),
             section=writer.current_section if writer.nested else None,
         )
-    elif not inserted_any and lines:
+    elif not inserted_any and lines and not pending_key:
         writer.add_free_text(
             "\n".join(lines),
             section=writer.current_section if writer.nested else None,
         )
 
     if pending_key:
-        if writer.nested:
+        if writer.nested and (
+            looks_like_section_header(pending_key) or SECTION_HINT_PATTERN.search(pending_key)
+        ):
             writer.set_current_section(pending_key)
+        elif writer.nested:
+            writer.add_free_text(f"{pending_key}:", section=writer.current_section if writer.nested else None)
         else:
             writer.add_key_value(pending_key, "")
+
+
+def collect_source_lines(form_items: list[dict]) -> list[str]:
+    source_lines = []
+
+    for item in form_items:
+        category = str(item.get("category", "") or "")
+        if category in IMAGE_LIKE_CATEGORIES:
+            continue
+
+        raw_text = str(item.get("text", "") or "")
+        if not raw_text:
+            continue
+
+        if category == "table":
+            matrix = html_table_to_matrix(raw_text)
+            for row in matrix:
+                for cell in row:
+                    clean_cell = normalize_whitespace(cell)
+                    if not clean_cell:
+                        continue
+                    for line in clean_cell.split("\n"):
+                        clean_line = normalize_whitespace(line)
+                        if clean_line:
+                            source_lines.append(clean_line)
+            continue
+
+        if category == "formula":
+            normalized = formula_to_text(raw_text)
+        else:
+            normalized = normalize_whitespace(raw_text)
+
+        if not normalized:
+            continue
+
+        for line in normalized.split("\n"):
+            clean_line = normalize_whitespace(line)
+            if clean_line:
+                source_lines.append(clean_line)
+
+    # de-duplicate while preserving order
+    seen = set()
+    deduped = []
+    for line in source_lines:
+        if line in seen:
+            continue
+        seen.add(line)
+        deduped.append(line)
+    return deduped
+
+
+def line_is_covered_by_label(line: str, label_blob: str) -> bool:
+    if line in label_blob:
+        return True
+
+    checkbox_obj = parse_checkbox_value(line)
+    if checkbox_obj:
+        for option_key in checkbox_obj.keys():
+            if normalize_key(option_key) not in label_blob:
+                return False
+        return True
+
+    section_hint, kv_pairs = parse_key_value_pairs(line)
+    if kv_pairs:
+        for key, value in kv_pairs:
+            if normalize_key(key) not in label_blob:
+                return False
+            if isinstance(value, dict):
+                for option_key in value.keys():
+                    if normalize_key(option_key) not in label_blob:
+                        return False
+            else:
+                if normalize_whitespace(str(value)) not in label_blob:
+                    return False
+        return True
+
+    maybe_empty_key = parse_empty_key_marker(line)
+    if maybe_empty_key:
+        return maybe_empty_key in label_blob
+
+    return False
+
+
+def preserve_missing_lines(writer: LabelWriter, form_items: list[dict]) -> None:
+    source_lines = collect_source_lines(form_items)
+    if not source_lines:
+        return
+
+    label_blob = normalize_whitespace(json.dumps(writer.root, ensure_ascii=False))
+    missing_lines = []
+
+    for line in source_lines:
+        if not line_is_covered_by_label(line, label_blob):
+            missing_lines.append(line)
+
+    if missing_lines:
+        # Keep uncaptured content in root-level free text so conversion is lossless.
+        writer.add_free_text("\n".join(missing_lines), section=None)
 
 
 def form_to_kv_label(form_items: list[dict], label_style: str = "nested") -> dict:
@@ -630,16 +1068,33 @@ def form_to_kv_label(form_items: list[dict], label_style: str = "nested") -> dic
 
         if category == "table":
             matrix = html_table_to_matrix(text)
+            caption, matrix = extract_table_caption_and_matrix(matrix)
+            if caption:
+                writer.set_pending_table_name(
+                    caption,
+                    section=writer.current_section if nested else None,
+                )
+
             if is_structured_table_matrix(matrix):
                 table = matrix_to_table_kv(matrix)
                 rows = table.get("rows", []) if isinstance(table, dict) else []
                 columns = table.get("columns", []) if isinstance(table, dict) else []
                 if rows:
-                    writer.add_table(rows, section=writer.current_section if nested else None)
+                    writer.add_table(
+                        rows,
+                        section=writer.current_section if nested else None,
+                        table_name=caption,
+                    )
                 elif columns:
-                    writer.add_table([], section=writer.current_section if nested else None)
+                    writer.add_table(
+                        [],
+                        section=writer.current_section if nested else None,
+                        table_name=caption,
+                    )
             else:
-                lines = table_matrix_to_text_lines(matrix)
+                lines = form_grid_matrix_to_lines(matrix)
+                if not lines:
+                    lines = table_matrix_to_text_lines(matrix)
                 put_text_lines_into_label(writer, lines)
             continue
 
@@ -653,6 +1108,7 @@ def form_to_kv_label(form_items: list[dict], label_style: str = "nested") -> dic
         lines = [normalize_whitespace(line) for line in normalize_whitespace(text).split("\n")]
         put_text_lines_into_label(writer, [line for line in lines if line])
 
+    preserve_missing_lines(writer, form_items)
     return writer.root
 
 

@@ -1,0 +1,98 @@
+<a id='c0a6dd3d-1995-4938-86ac-d6a6d2a01fdb'></a>
+
+<::logo: National Citizen Bank
+NCB
+NATIONAL CITIZEN BANK
+NGÂN HÀNG QUỐC DÂN
+The logo features a stylized black coin or circular shape with a diamond cut-out, placed to the left of the letters "NCB", with "NATIONAL CITIZEN BANK" and "NGÂN HÀNG QUỐC DÂN" in smaller text below.::>
+
+<a id='e4d9f069-2efa-42fa-b0bd-8997e65656e8'></a>
+
+GIẤY RÚT TIỀN
+CASH WITHDRAWAL SLIP
+
+<a id='359c6b05-2525-4803-b523-b84717c9d57c'></a>
+
+148
+_
+
+<a id='57873a61-c3b5-4046-b621-d629765bbae0'></a>
+
+<::scan_code: QR code
+This QR code is black and white, appears to be in good condition, and is centrally located within the image frame.::>
+
+<a id='94d5dd64-28ca-4f7f-8a92-d20ea79f4975'></a>
+
+<table id="0-1">
+<tr><td id="0-2" colspan="3">Đề nghị ghi nợ tài khoản (Please debit A/c) Ngày (date): 13/05/2025</td></tr>
+<tr><td id="0-3" colspan="3">Tên tài khoản (Account name) NGUYEN VIET HUNG</td></tr>
+<tr><td id="0-4" colspan="3">Số tài khoản (Account number) 100013014668</td></tr>
+<tr><td id="0-5" colspan="3">Ngân hàng (With bank): CN HA NOI</td></tr>
+<tr><td id="0-6" colspan="3">Người lĩnh tiên (Receiver) :</td></tr>
+<tr><td id="0-7" colspan="3">Họ và tên (Full name): NGUYEN VIET HUNG</td></tr>
+<tr><td id="0-8">Số CMND/CCCD/HC (ID/Passport number) 001083039147</td><td id="0-9">Ngày cấp (Date of issue) 27/08/2022</td><td id="0-a">Nơi cấp (Place of issue) CUC CSQLHCVTTXH</td></tr>
+<tr><td id="0-b" colspan="2">Địa chỉ (Address) 82 KHAM THIEN HA NOI QUAN DONG DA THANH PHO HA NOI</td><td id="0-c">Điện thoại (Tel) 84983795410</td></tr>
+<tr><td id="0-d" colspan="3">Nội dung (Details) NGUYEN VIET HUNG RUT TM</td></tr>
+<tr><td id="0-e" colspan="3">“Tôi xác nhận đã đọc, hiểu và cam đoan các thông tin trên là đúng theo yêu cầu của tôi (I certify that I have read, understood and affirm that the above information is correct according to my request.)</td></tr>
+<tr><td id="0-f">Kế toán trưởng (Chief accountant)</td><td id="0-g">Chủ tài khoản (ký &amp; đóng dấu) (A/c holder signature &amp; stamp) (signature)</td><td id="0-h">Người nhận tiền (Receiver) (signature) Nguyễn Việt Hưng</td></tr>
+</table>
+<table id="0-i">
+<tr><td id="0-j" colspan="3">Số tiền (With amount)</td></tr>
+<tr><td id="0-k">Loại tiền (Currency)</td><td id="0-l" colspan="2">☑ VND ☐ EUR ☐ USD ☐ Khác (Other)</td></tr>
+<tr><td id="0-m" colspan="3">Số tiền bằng số (Amount in figures) 1,000,000,000 VND Số tiền bằng chữ (Amount in words) Một tỷ Đồng chẵn</td></tr>
+<tr><td id="0-n" colspan="3">Phí Ngân hàng (Charges):</td></tr>
+<tr><td id="0-o" colspan="3">☐ Phí trong(Including) ☐ Phí ngoài (Excluding)</td></tr>
+<tr><td id="0-p" colspan="3">Số tiền phí (Amount charge): 0</td></tr>
+<tr><td id="0-q" colspan="2">Mệnh giá (Denomination) Số tờ (Quantity)</td><td id="0-r">Thành tiền (Amount) (text in box)</td></tr>
+<tr><td id="0-s" colspan="2">500,000 (red writing) 2,000</td><td id="0-t">1,000,000,000 (with red stamp)</td></tr>
+<tr><td id="0-u" colspan="2">Tổng cộng (Total) (red ink)</td><td id="0-v">1,000,000,000 (with red stamp)</td></tr>
+<tr><td id="0-w" colspan="3">Mã giao dịch: FC104RTM2505 16021 (red stamp); Company: VN0010104</td></tr>
+<tr><td id="0-x" colspan="3">Nợ TK: 100013014668 - 1,000,000,000 VND Có TK: VND1000199990104 - 1,000,000,000 VND</td></tr>
+</table>
+Dành cho Ngân hàng (For bank user only)
+Giao dịch viên/Thủ quỹ
+(Teller/Cashier)
+NGUYEN TRANG VAN
+Người duyệt
+(Approver)
+KIỂM SOÁT VII
+
+<a id='11e64bd6-1e83-4394-aa16-a4be6444ac14'></a>
+
+<::attestation: Official stamp
+Paid
+Readable Text: ĐÃ CHI TIỀN
+Readable Text: 500,000
+Readable Text: 2,000
+Readable Text: 1,000,0
+Readable Text: Tổng cộng (Total)
+Readable Text: giao dịch: FC104RTM2505
+Readable Text: npany: VN0010104
+Readable Text: TK: 100013014668 - 1,000,000,000 VND
+Readable Text: TK: VND1000199990104 - 1,000,000,000 V
+A rectangular red stamp, indicating "PAID", is partially visible and overlaps text in the center-right of the document.::>
+
+<a id='25e3a76e-8533-4817-a580-e0948cf8463b'></a>
+
+<::attestation: [Signature]
+[signed]
+[Signature: illegible]
+dịch viên/Thủ quỹ
+(Teller/Cashier)
+YEN TRANG VAN
+A blue ink signature is placed above "YEN TRANG VAN" and below "dịch viên/Thủ quỹ (Teller/Cashier)" in the center of the image.
+::>
+
+<a id='f874bdee-9489-4aef-b534-f2a271a689f7'></a>
+
+<::attestation: Signature and Verification
+Approved, Verified, Signed
+Signature: illegible
+Người duyệt (Approver)
+KIỂM SOÁT VIÊN
+Phan Thị Hòa
+An illegible blue signature is positioned above the text "Người duyệt (Approver)", with a red stamp-like text "KIỂM SOÁT VIÊN" and "Phan Thị Hòa" overlaid on the signature, centrally located in the image.::>
+
+<a id='a3f19103-111c-4c55-94ed-6e912de80f36'></a>
+
+1 | Page

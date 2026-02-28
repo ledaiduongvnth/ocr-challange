@@ -1,0 +1,53 @@
+{
+    "Title": "GIẤY RÚT TIỀN\nCASH WITHDRAWAL SLIP",
+    "Đề nghị ghi nợ tài khoản (Please debit A/c)": {
+        "Ngày (date)": "13/05/2025",
+        "Tên tài khoản (Account name)": "NGUYEN VIET HUNG",
+        "Số tài khoản (Account number)": "100013014668",
+        "Ngân hàng (With bank)": "CN HA NOI"
+    },
+    "Người lĩnh tiền (Receiver)": {
+        "Họ và tên (Full name)": "NGUYEN VIET HUNG",
+        "Số CMND/CCCD/HC (ID/Passport number)": "001083039147",
+        "Ngày cấp (Date of issue)": "27/08/2022",
+        "Nơi cấp (Place of issue)": "CUC CSQLHCVTTXH",
+        "Địa chỉ (Address)": "82 KHAM THIEN HA NOI QUAN DONG DA THANH PHO HA NOI",
+        "Điện thoại (Tel)": "84983795410",
+        "Nội dung (Details)": "NGUYEN VIET HUNG RUT TM",
+        "FreeText1": "Tôi xác nhận đã đọc, hiểu và cam đoan các thông tin trên là đúng theo yêu cầu của tôi (I certify that I have read, understood and affirm that the above information is correct according to my request.)",
+        "Kế toán trưởng (Chief accountant)": "",
+        "Chủ tài khoản (ký & đóng dấu) (A/c holder signature & stamp)": "Nguyễn Việt Hưng",
+        "Người nhận tiền (Receiver)": "Nguyễn Việt Hưng"
+    },
+    "Dành cho Ngân hàng (For bank user only)": {
+        "Giao dịch viên/Thủ quỹ (Teller/Cashier)": "NGUYEN TRANG VAN",
+        "Người duyệt (Approver)": "KIỂM SOÁT VIÊN Phan Thị Hòa"
+    },
+    "Số tiền (With amount)": {
+        "Loại tiền (Currency)": {
+            "VND": true,
+            "EUR": false,
+            "USD": false,
+            "Khác (Other)": false
+        },
+        "Số tiền bằng số (Amount in figures)": "1,000,000,000 VND",
+        "Số tiền bằng chữ (Amount in words)": "Một tỷ Đồng chẵn",
+        "Phí Ngân hàng (Charges)": {
+            "Phí trong (Including)": false,
+            "Phí ngoài (Excluding)": false
+        },
+        "Số tiền phí (Amount charge)": "0",
+        "Table1": [
+            {
+                "Mệnh giá (Denomination)": "500,000",
+                "Số tờ (Quantity)": "2,000",
+                "Thành tiền (Amount)": "1,000,000,000"
+            }
+        ],
+		"Tổng cộng": [{"Thành tiền (Amount)":"1,000,000,000"}],
+        "Mã giao dịch": "FC 104BNT250513023",
+        "Company": "VN0010104",
+        "Nợ TK": "100013014668 - 1,000,000,000 VND",
+        "Có TK": "VND1000199990104 - 1,000,000,000 VND"
+    }
+}

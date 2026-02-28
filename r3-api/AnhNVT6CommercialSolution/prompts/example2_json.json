@@ -1,0 +1,61 @@
+{
+    "Title": "PHIẾU HẠCH TOÁN",
+    "Loại giao dịch": "Hoàn quỹ nội bộ",
+    "Ngày": "13/05/2025",
+    "Mã Giao Dịch": "FC104NBO250513037",
+    "Số Bút Toán": "FT25133VTRRB",
+    "THÔNG TIN CHI TIẾT": {
+        "Người xuất": "Nguyễn Trang Vân",
+        "Mã người xuất": "VANNT11_VN0010104",
+        "Người nhận": "Trần Thanh Hà",
+        "Mã người nhận": "9998",
+        "Số tiền": "45,771,000",
+        "Số tiền bằng chữ": "Bốn mươi lăm triệu bảy trăm bảy mươi mốt nghìn Đồng chẵn",
+        "Nội dung": "VANNT11 - Nguyễn Trang Vân hoàn quỹ về KHO HA NOI"
+    },
+    "BẢNG KÊ TIỀN MẶT": [
+        {
+            "Mệnh giá": "500,000",
+            "Số tờ": "47",
+            "Thành tiền": "23,500,000 VND"
+        },
+        {
+            "Mệnh giá": "200,000",
+            "Số tờ": "51",
+            "Thành tiền": "10,200,000 VND"
+        },
+        {
+            "Mệnh giá": "100,000",
+            "Số tờ": "90",
+            "Thành tiền": "9,000,000 VND"
+        },
+        {
+            "Mệnh giá": "50,000",
+            "Số tờ": "30",
+            "Thành tiền": "1,500,000 VND"
+        },
+        {
+            "Mệnh giá": "20,000",
+            "Số tờ": "58",
+            "Thành tiền": "1,160,000 VND"
+        },
+        {
+            "Mệnh giá": "10,000",
+            "Số tờ": "30",
+            "Thành tiền": "300,000 VND"
+        },
+        {
+            "Mệnh giá": "5,000",
+            "Số tờ": "4",
+            "Thành tiền": "20,000 VND"
+        },
+        {
+            "Mệnh giá": "1,000",
+            "Số tờ": "91",
+            "Thành tiền": "91,000 VND"
+        }
+    ],
+    "Tổng cộng (Total)": [{"Thành tiền": "45,771,000"}],
+    "Người nhập": "VANNT11 _ 16:52",
+    "Người duyệt": "THUYTT _ 16:53"
+}

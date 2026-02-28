@@ -1,0 +1,80 @@
+<a id='349eb79e-f1c0-4f6c-8066-f66a1393e052'></a>
+
+<::logo: National Citizen Bank (NCB)
+NCB NATIONAL CITIZEN BANK NGÂN HÀNG QUỐC DÂN Company: CN HA NOI
+The logo features a stylized coin symbol on the left, with the text "NCB" in large, bold letters and "NATIONAL CITIZEN BANK" in smaller text below it, all in black.::>
+
+<a id='8e30399f-35db-4f33-92f1-6c5eadc684ad'></a>
+
+<::scan_code: QR code
+This QR code is clear, well-defined, and appears to be in good condition without any noticeable distortions or quality issues.::>
+
+<a id='995ed6b4-be92-430c-b915-b895e8cb6c93'></a>
+
+PHIẾU HẠCH TOÁN
+
+<a id='1c2b7157-c8d3-48a3-b95a-7acb7a2c0987'></a>
+
+Loại giao dịch: Hoàn quỹ nội bộ
+
+<a id='c06a6f76-f2c5-4987-b7be-17e463ac10c1'></a>
+
+Ngày: 13 / 05 / 2025
+
+<a id='3dde2474-9597-4e2e-95f5-9e256b8af8fa'></a>
+
+Mã Giao Dịch: FC104NBO250513037
+
+THÔNG TIN CHI TIẾT
+
+Người xuất: Nguyễn Trang Vân
+Mã người xuất: VANNT11_VN0010104
+Người nhận: Trần Thanh Hà
+Mã người nhận: 9998
+Số tiền: 45,771,000
+Số tiền bằng chữ: Bốn mươi lăm triệu bảy trăm bảy mươi mốt nghìn Đồng chẵn
+Nội dung: VANNT11 - Nguyễn Trang Vân hoàn quỹ về KHO HA NOI
+
+<a id='858d0520-1954-4e33-bcea-f8bb868cb6fe'></a>
+
+Số Bút Toán: FT25133VTRRB
+BẢNG KÊ TIỀN MẶT
+<table id="0-1">
+<tr><td id="0-2">Mệnh giá</td><td id="0-3">Số tờ</td><td id="0-4" colspan="2">Thành tiền</td></tr>
+<tr><td id="0-5">500,000</td><td id="0-6">47</td><td id="0-7">23,500,000</td><td id="0-8">VND</td></tr>
+<tr><td id="0-9">200,000</td><td id="0-a">51</td><td id="0-b">10,200,000</td><td id="0-c">VND</td></tr>
+<tr><td id="0-d">100,000</td><td id="0-e">90</td><td id="0-f">9,000,000</td><td id="0-g">VND</td></tr>
+<tr><td id="0-h">50,000</td><td id="0-i">30</td><td id="0-j">1,500,000</td><td id="0-k">VND</td></tr>
+<tr><td id="0-l">20,000</td><td id="0-m">ĐÃ CHI 58</td><td id="0-n">TIÊN 160,000</td><td id="0-o">VND</td></tr>
+<tr><td id="0-p">10,000</td><td id="0-q">30</td><td id="0-r">300,000</td><td id="0-s">VND</td></tr>
+<tr><td id="0-t">5,000</td><td id="0-u">4</td><td id="0-v">20,000</td><td id="0-w">VND</td></tr>
+<tr><td id="0-x">1,000</td><td id="0-y">91</td><td id="0-z">91,000</td><td id="0-A">VND</td></tr>
+<tr><td id="0-B" colspan="2">Tổng cộng (Total)</td><td id="0-C">45,771,000</td><td id="0-D"></td></tr>
+</table>
+
+<a id='01d8d076-fdff-44c0-a7f5-b86c80fa1141'></a>
+
+<::attestation: Stamp
+Status: Paid
+Readable Text: ĐÃ CHI TIỀN
+Readable Text (surrounding): 58, 16, 30, 30
+A red rectangular stamp with the text "ĐÃ CHI TIỀN" (Paid) is centrally located, with numbers "58", "16", "30", "30" appearing around it, possibly from an underlying grid.::>
+
+<a id='3ea3cd7e-fa55-43f2-83ad-f718c5fc8d02'></a>
+
+<::attestation: Signature
+Signed
+Signature: illegible
+NGƯỜI NHẬP
+VANNT11_ 16:52
+A stylized blue ink signature is centered between the text "NGƯỜI NHẬP" at the top and "VANNT11_ 16:52" at the bottom.::>
+
+<a id='796a6de4-755d-47c6-b7a7-ec56cc14fd2f'></a>
+
+<::attestation: Signature
+Signed
+Signature: illegible
+NGƯỜI DUYỆT
+THUYTT_ 16:53
+A blue handwritten signature appears below the text "NGƯỜI DUYỆT" and above "THUYTT_ 16:53", centrally positioned on the page.
+::>

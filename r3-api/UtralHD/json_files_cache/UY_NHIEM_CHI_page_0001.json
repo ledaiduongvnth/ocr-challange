@@ -1,0 +1,44 @@
+{
+    "Title": "ỦY NHIỆM CHI\nPAYMENT ORDER",
+    "FreeText1": "Liên 1: Ngân hàng giữ (For bank)",
+    "Đề nghị ghi nợ tài khoản (Please debit acount)": {
+        "Tên tài khoản (Account name)": "",
+        "Số tài khoản (Account number)": "",
+        "Ngân hàng (With bank)": "",
+        "Tỉnh/TP (Provinces/City)": ""
+    },
+    "Ngày (Date)": "",
+    "Số tiền (With amount)": {
+        "Loại tiền (Currency)": {
+            "VND": false,
+            "EUR": false
+        },
+        "USD": false,
+        "Khác (Other)": false,
+        "Số tiền bằng số (Amount in figures)": ""
+    },
+    "Người hưởng (Beneficiary)": {
+        "Tên tài khoản (Account name)": "",
+        "Số tài khoản (Account number)": "",
+        "Ngân hàng (With bank)": "",
+        "Tỉnh/TP (Provinces/City)": "",
+        "Số tiền bằng chữ (Amount in words)": "",
+        "Nội dung (Details)": ""
+    },
+    "Phí Ngân hàng (Charges)": {
+        "Người chuyển chịu (Sender)": false,
+        "Người hưởng chịu (Beneficiary)": false,
+        "Số tiền phí (Amount charge)": ""
+    },
+    "Chủ tài khoản (ký và đóng dấu) (Holder's signature and stamp)": "",
+    "Kế toán trưởng (Chief accountant)": "",
+    "Dành cho Ngân hàng (For bank use only)": {
+        "Giao dịch viên (Teller)": "",
+        "Người duyệt (Approver)": "",
+        "Số bút toán": "",
+        "Nợ TK": "",
+        "Có TK_1": "",
+        "Có TK_2": ""
+    },
+    "FreeText2": "BM04.QT25/NVKQ v1.0\nỦy nhiệm chi - Lien 1 NH giu"
+}

@@ -1,0 +1,83 @@
+{
+    "Title": "C. YÊU CẦU THAY ĐỔI ĐĂNG KÝ DỊCH VỤ/ REQUIREMENT FOR CHANGE SERVICE REGISTRATION",
+    "FreeText1": "DỊCH VỤ NGÂN HÀNG ĐIỆN TỬ (MB ĐIỆN TỬ)/ E-BANKING (MB E-BANKING) SERVICE",
+    "SMS BANKING": {
+        "Bổ sung Số điện thoại sử dụng dịch vụ/Add Mobile No.": {
+            "Số Mobile/ Mobile No._1": "",
+            "Số Mobile/ Mobile No._2": "",
+            "Số Mobile/ Mobile No._3": "",
+            "Số Mobile/ Mobile No._4": "",
+            "Số TKTT/Account No._1": "",
+            "Số TKTT/Account No._2": ""
+        },
+        "Hủy Số điện thoại sử dụng dịch vụ/ Cancel Mobile No.": {
+            "Số Mobile/ Mobile No._1": "",
+            "Số Mobile/ Mobile No._2": "",
+            "Số Mobile/ Mobile No._3": "",
+            "Số Mobile/ Mobile No._4": "",
+            "Số TKTT/ Account No._1": "",
+            "Số TKTT/ Account No._2": ""
+        },
+        "Hủy dịch vụ cho TKTT/Cancel service for Account, No.": false,
+        "Khác/Other": false
+    },
+    "INTERNET BANKING, MOBILE BANKING": {
+        "Khóa dịch vụ / Lock the service": false,
+        "Mở khóa dịch vụ/Unlock the service": false,
+        "Hủy dịch vụ/ Cancel the service": false,
+        "Thay đổi gói dịch vụ/ Change service pack": {
+            "Basic": false,
+            "Advance": false,
+            "Advance +": false
+        },
+        "Thay đổi hạn mức/ Change limit": {
+            "2 tỷ đồng/billion dong": false,
+            "5 tỷ đồng/billion dong": false,
+            "10 tỷ đồng/billion dong": false,
+            "Không giới hạn/Unlimited": false,
+            "30 tỷ đồng/billion dong": false,
+            "50 tỷ đồng/billion dong": false,
+            "Khác/Other": false
+        },
+        "Thay đổi số tài khoản thu phí/ Change fee-Changed account No.": "",
+        "Thay đổi chế độ phê duyệt/ Change of approval mode": {
+            "Chế độ 01 cấp duyệt/ 01-level approval mode": false,
+            "Chế độ 02 cấp duyệt/ 02-level approval mode": false
+        },
+        "Thay đổi người/thông tin sử dụng dịch vụ/ Change service user/Information Use": {
+            "Nội dung thay đổi/Changes": {
+                "Thêm người dùng/Add User": false,
+                "Hủy người dùng/Cancel User": false,
+                "Cấp lại mật khẩu/Re-issue the password": false,
+                "Khóa User/Block user": false,
+                "Mở khóa User/UnBlock user": false,
+                "Thông tin người dùng/ Information of User": false,
+                "Phương thức xác thực giao dịch/ Authentication method of transaction": false,
+                "Khác/Other": false
+            },
+            "Người phê duyệt/Releaser User": false,
+            "Người kiểm soát/ Approval User": false,
+            "Người tạo giao dịch/Maker User": false
+        },
+        "Thông tin người dùng/ Information of User": {
+            "Họ và tên/ Full Name": "",
+            "CMND/ID card": false,
+            "Hộ chiếu/ Passport": false,
+            "Căn cước công dân/": false,
+            "Khác/Other": false,
+            "Số/ No.": "",
+            "Ngày cấp/ Issued date": "/ /",
+            "Nơi cấp/Issued by": "",
+            "Chức vụ/ Position": "",
+            "Số điện thoại di động/ Mobile No.": "",
+            "Email": ""
+        },
+        "Tên đăng nhập/ Username (6-16 ký tự/6-16 characters)": "",
+        "Phương thức xác thực giao dịch/ Authentication method of transaction": {
+            "Digital OTP": false,
+            "Chứng từ số (CA), Số Serial": false,
+            "Khác/Other": false
+        }
+    },
+    "FreeText2": "BM03.TKTT&DV.KHTC\n04"
+}

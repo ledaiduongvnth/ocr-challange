@@ -1,0 +1,52 @@
+{
+    "Title": "SAO KÊ TÀI KHOẢN\nACCOUNT STATEMENT",
+    "Tên tài khoản/Account name": "DO THI NGOC HA",
+    "Số tài khoản/Account number": "0301000352816",
+    "Ngày thực hiện/ Date": "29/12/2025",
+    "Chi nhánh thực hiện/ Branch": "VCB THANG LONG-PGD\nNGUYEN CO THACH",
+    "Loại tài khoản/Type of Account": "Tài khoản 1 chủ sở hữu/ Sole owner account",
+    "Địa chỉ/ Address": "QT, PHUONG DAI MO, QUAN NAM TU LIEM, THANH PHO HA NOI",
+    "CCCD/Hộ chiếu số/ Citizen ID/PP No": "033196003050",
+    "CIF": "9071416",
+    "Loại tiền/Currency": "VND",
+    "Từ/ From": "25/11/2025",
+    "Đến/ To": "27/11/2025",
+    "Số dư đầu kỳ/ Opening balance": "8.395.252",
+    "Table1": [
+        {
+            "STT No": "1",
+            "Ngày GD/ TNX Date Số CT/ Doc No": "25/11/2025\n9701.0000401558",
+            "Số tiền ghi nợ/ Debit": "",
+            "Số tiền ghi có/ Credit": "1.073",
+            "Số dư/ Balance": "8.396.325",
+            "Nội dung chi tiết/ Transactions in detail": "INTEREST PAYMENT"
+        },
+        {
+            "STT No": "2",
+            "Ngày GD/ TNX Date Số CT/ Doc No": "27/11/2025\n5254.8798",
+            "Số tiền ghi nợ/ Debit": "6.762.445",
+            "Số tiền ghi có/ Credit": "",
+            "Số dư/ Balance": "1.633.880",
+            "Nội dung chi tiết/ Transactions in detail": "UHHT..898750..20251124. .452404...7340.20251126.DG:SP\nSCRUM.ORG\nSTORE.250.00USD"
+        },
+        {
+            "STT No": "Tổng số/Total",
+            "Ngày GD/ TNX Date Số CT/ Doc No": "Tổng số/Total",
+            "Số tiền ghi nợ/ Debit": "6.762.445",
+            "Số tiền ghi có/ Credit": "1.073",
+            "Số dư/ Balance": "Tổng số/Total",
+            "Nội dung chi tiết/ Transactions in detail": "Tổng số/Total"
+        }
+    ],
+    "Số dư cuối kỳ/Closing balance": "1.633.880",
+    "FreeText1": "Trân trọng cảm ơn quý khách đã sử dụng dịch vụ của Vietcombank!\nThank you for using Vietcombank's services!",
+    "FreeText2": "VIETCOMBANK - Chung niềm tin vững tương lai\nVIETCOMBANK - Together for the future\n***",
+    "FreeText3": "PHÓ TRƯỞNG PHÒNG\nHà Quốc Bảo",
+    "FreeText4": "Ghi chú: Giấy Xác nhận này của Ngân hàng TMCP Ngoại thương Việt Nam đảm bảo thông tin chính xác tại thời điểm xác nhận theo nội dung yêu cầu của Khách hàng. Giấy xác nhận này không cấu thành bất kỳ cam đoan hay bảo đảm nào của Ngân hàng TMCP Ngoại thương Việt Nam tại thời điểm hiện tại hay tương lai đối\nvới các nghĩa vụ của Khách hàng xác lẫn với bên thứ ba./.\nNote: This letter of confirmation of the Joint Stock Commercial Bank for Foreign Trade of Vietnam ensures accurate information at the time of confirmation as requested by the customer. This acknowledgment does not constitute any current or future guarantees of the customer's obligations confirmed to third parties./.",
+    "Postal address": "198 TRAN QUANG KHAI AVENUE\nHANOI - S.R. VIETNAM",
+    "Telex": "(0805) 411504 VCB - VT",
+    "Swift": "BFTV VNVX",
+    "Website": "www.vietcombank.com.vn",
+    "Contact center": "1900.54.54.13",
+    "FreeText5": "Page 1 of 1"
+}

@@ -1,0 +1,73 @@
+{
+    "FreeText1": "Ngân Hàng TNHH MTV Shinhan Việt Nam\n15 Trần Bạch Đằng, P. Thủ Thiêm,\nTp. Thủ Đức, Tp. Hồ Chí Minh, Việt Nam.\nShinhan Bank Vietnam Limited\n15 Tran Bach Dang, Thu Thiem Ward,\nThu Duc City, Ho Chi Minh City, Viet Nam.",
+    "Title": "Bảng Sao Kê Giao Dịch Thẻ Tín Dụng Shinhan\nShinhan Credit Card Statement",
+    "Khách hàng (Cardholder Name)": "DINH THUY LINH",
+    "Địa chỉ (Address)": "TRUONG CD FPT POLYTECHNIC, PHONG TOI UU VAN HANH, 13\nTRINH VAN BO PHUONG PHUONG CANH\nQUAN NAM TU LIEM\nTHANH PHO HA NOI",
+    "Mã khách hàng (Member No.)": "P000693848",
+    "Chu kỳ sao kê (Statement Period)": "19-02-2025 ~ 20-03-2025",
+    "Tài khoản thanh toán thẻ (Auto-Debit Account)": "N/A",
+    "Khoản quá hạn (Overdue)": "0",
+    "Tỉ lệ thanh toán tự động (Registered Payment Ratio)": "0%",
+    "Dư nợ cuối kỳ (Statement Balance)": "10,534,812",
+    "Hạn mức tín dụng (Credit Limit)": "64,000,000",
+    "Thanh toán tối thiểu (Minimum Payment)": "2,106,433",
+    "Dư có (Surplus)": "26,653",
+    "Ngày đến hạn thanh toán (Payment Due Date)": "05-04-2025",
+    "Dư nợ kỳ trước (Previous Month Balance)": "1,409,688",
+    "Giao dịch trong tháng (This Month Transactions)": "10,972,415",
+    "Phí (Fees)": "11,000",
+    "Lãi (Interest)": "0",
+    "Thanh toán (Payments)": "1,858,291",
+    "Dư nợ cuối kỳ_1 (Statement Balance)": "10,534,812",
+    "Table1": [
+        {
+            "Ưu đãi (Reward Type)": "Shinhan Point",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "0",
+            "Ưu đãi tháng này (This month reward)": "0",
+            "Ưu đãi đã qui đổi (This month used)": "0",
+            "Ưu đãi hiện có (Available reward)": "0",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": "0"
+        },
+        {
+            "Ưu đãi (Reward Type)": "Shinhan Mileage",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "0",
+            "Ưu đãi tháng này (This month reward)": "0",
+            "Ưu đãi đã qui đổi (This month used)": "0",
+            "Ưu đãi hiện có (Available reward)": "0",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": "0"
+        },
+        {
+            "Ưu đãi (Reward Type)": "Cash-Back",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "0",
+            "Ưu đãi tháng này (This month reward)": "27,926",
+            "Ưu đãi đã qui đổi (This month used)": "27,926",
+            "Ưu đãi hiện có (Available reward)": "0",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": ""
+        },
+        {
+            "Ưu đãi (Reward Type)": "Signature Point",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "0",
+            "Ưu đãi tháng này (This month reward)": "0",
+            "Ưu đãi đã qui đổi (This month used)": "0",
+            "Ưu đãi hiện có (Available reward)": "0",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": "0"
+        },
+        {
+            "Ưu đãi (Reward Type)": "Lotte Mart Point",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "",
+            "Ưu đãi tháng này (This month reward)": "0",
+            "Ưu đãi đã qui đổi (This month used)": "0",
+            "Ưu đãi hiện có (Available reward)": "",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": ""
+        },
+        {
+            "Ưu đãi (Reward Type)": "Skypass Mileage",
+            "Ưu đãi còn lại từ tháng trước (Last month remaining reward)": "",
+            "Ưu đãi tháng này (This month reward)": "0",
+            "Ưu đãi đã qui đổi (This month used)": "0",
+            "Ưu đãi hiện có (Available reward)": "",
+            "Ưu đãi sẽ hết hạn vào 06.2025 (Reward will be expired by 06.2025)": ""
+        }
+    ],
+    "FreeText2": "* Quý khách vui lòng tham khảo"
+}

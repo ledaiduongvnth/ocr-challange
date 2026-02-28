@@ -1,0 +1,27 @@
+{
+    "FreeText1": "Biểu mẫu 09\nMẫu Giấy thay đổi thông tin sử dụng Dịch vụ ngân hàng điện tử (Dành cho khách hàng)\nNGÂN HÀNG TMCP CÔNG THƯƠNG VIỆT NAM",
+    "Title": "GIẤY THAY ĐỔI THÔNG TIN SỬ DỤNG DỊCH VỤ NGÂN HÀNG ĐIỆN TỬ\n(Dành cho khách hàng cá nhân)",
+    "Kính gửi: Ngân hàng TMCP Công thương Việt Nam – Chi nhánh/PGD": "",
+    "Họ tên khách hàng": "",
+    "Sinh ngày": "",
+    "Nam/Nữ": "",
+    "Số CMND/Hộ chiếu": "",
+    "cấp ngày": "",
+    "tại": "",
+    "Mã số khách hàng (Số CIF của khách hàng)": "",
+    "Số tài khoản đã đăng ký sử dụng dịch vụ": "",
+    "Số điện thoại đã đăng ký sử dụng dịch vụ": "",
+    "Địa chỉ email": "",
+    "FreeText2": "Hiện đang sử dụng dịch vụ Ngân hàng điện tử do quý Ngân hàng cung cấp, nay kính đề nghị Ngân hàng cho tôi được thay đổi thông tin sử dụng dịch vụ như sau:",
+    "Bổ sung chỉnh sửa thông tin": false,
+    "Huỷ bỏ thông tin": false,
+    "Chấm dứt sử dụng Dịch vụ": false,
+    "Các thông tin thay đổi có hiệu lực từ ngày": "",
+    "Table1": [
+        {
+            "QUY TRÌNH": "THỰC HIỆN DỊCH VỤ SMS BANKING",
+            "Mã số: QT.40.06/BM09": "Lần sửa đôi: 00",
+            "Trang : 1/2": "Ngày sửa đôi:"
+        }
+    ]
+}

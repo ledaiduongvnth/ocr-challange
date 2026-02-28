@@ -1,0 +1,90 @@
+{
+    "FreeText1": "Ngân Hàng TMCP Công Thương Việt Nam Chi nhánh Branch: 12934 - CN BAC HA NOI - PGD NGUYEN GIA THIEU",
+    "Title": "SAO KÊ CHI TIẾT GIAO DỊCH\nTRANSACTIONS STATEMENT",
+    "FreeText2": "Từ ngày 25/08/2025 Đến ngày 25/08/2025\nFrom date 25/06/2025 to date 25/08/2025",
+    "Kính gửi quý khách hàng Dear Customer": "DAO TRONG HIEU",
+    "Số ID khách hàng ID.No": "031201010369",
+    "Địa chỉ Address": "CO AM HUYEN VINH BAO TP HAI PHONG VIET NAM",
+    "FreeText3": "Vietinbank xin trân trọng thông báo Sao kẻ giao dịch Tài khoản số: 108873154099 của quý khách hàng như sau:\nWe would like to inform your transaction statement as follow:",
+    "Loại tiền tệ *Currency*": "VND",
+    "Table1": [
+        {
+            "STT No": "So du dau kyBeginning Balance",
+            "Ngày GD Date Time": "So du dau kyBeginning Balance",
+            "Mô tả giao dịch Transaction Comment": "So du dau kyBeginning Balance",
+            "Nợ Debit": "",
+            "Có Credit": "",
+            "Số dư cuối Balance": "69,615",
+            "Tên đối ứng Offset Name": "",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        },
+        {
+            "STT No": "1",
+            "Ngày GD Date Time": "25/08/2025 08:49:45",
+            "Mô tả giao dịch Transaction Comment": "Chuyen tien den tu NAPAS Noi dung: Chuyen tien tu Viettel Money",
+            "Nợ Debit": "",
+            "Có Credit": "4,500,000",
+            "Số dư cuối Balance": "4,569,615",
+            "Tên đối ứng Offset Name": "MBBANK BT-NG 9704229205478542689 THU HO, CHI HO CAC TO CHUC THE QUOC TE-A/C 224130330",
+            "Ngân hàng đối ứng Offset Bank": "MB_NH TMCP Quan doi",
+            "Số giao dịch Reference No": "129525815LKBFGL A"
+        },
+        {
+            "STT No": "2",
+            "Ngày GD Date Time": "25/08/2025 09:03:42",
+            "Mô tả giao dịch Transaction Comment": "GD thanh toan tai WL *VUE*TESTING EXAM, the 3791",
+            "Nợ Debit": "4,353,402",
+            "Có Credit": "",
+            "Số dư cuối Balance": "216,213",
+            "Tên đối ứng Offset Name": "",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        },
+        {
+            "STT No": "3",
+            "Ngày GD Date Time": "25/08/2025 09:03:42",
+            "Mô tả giao dịch Transaction Comment": "Phí GD thanh toan tai WL *VUE TESTING EXAM, the 3791",
+            "Nợ Debit": "130,602",
+            "Có Credit": "",
+            "Số dư cuối Balance": "85,611",
+            "Tên đối ứng Offset Name": "THU HỌ, CHỈ HỌ CÁC TO CHỤC THE QUOC TE-A/C 224130330",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        },
+        {
+            "STT No": "Số dư cuối kỳ Ending balance",
+            "Ngày GD Date Time": "Số dư cuối kỳ Ending balance",
+            "Mô tả giao dịch Transaction Comment": "Số dư cuối kỳ Ending balance",
+            "Nợ Debit": "",
+            "Có Credit": "",
+            "Số dư cuối Balance": "85,611",
+            "Tên đối ứng Offset Name": "",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        },
+        {
+            "STT No": "Doanh số phát sinh ký bao cao total of reported period",
+            "Ngày GD Date Time": "Doanh số phát sinh ký bao cao total of reported period",
+            "Mô tả giao dịch Transaction Comment": "Doanh số phát sinh ký bao cao total of reported period",
+            "Nợ Debit": "4,484,004",
+            "Có Credit": "4,500,000",
+            "Số dư cuối Balance": "",
+            "Tên đối ứng Offset Name": "",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        },
+        {
+            "STT No": "Doanh số phát sinh năm Year to date",
+            "Ngày GD Date Time": "Doanh số phát sinh năm Year to date",
+            "Mô tả giao dịch Transaction Comment": "Doanh số phát sinh năm Year to date",
+            "Nợ Debit": "71,385,274",
+            "Có Credit": "71,390,098",
+            "Số dư cuối Balance": "",
+            "Tên đối ứng Offset Name": "",
+            "Ngân hàng đối ứng Offset Bank": "",
+            "Số giao dịch Reference No": ""
+        }
+    ],
+    "FreeText4": "Người lập bảng maker\nNguyễn Thị Lệ Huyền\nKiểm soát Checke\nQuý khách hàng (KH) vui lòng kiểm tra, đối chiếu số dư tài khoản trên sao kê chi tiết giao dịch của KH với Vietinbank. KH liên hệ với Vietinbank trong vòng 24 giờ kể từ khi nhận sao kê tài khoản để xác minh, đối chiếu. Nếu quá thời gian trên mà không nhận được phản hồi của KH thì dữ liệu trên được coi là chính xác.\nHoàng Thị Hương Giang"
+}

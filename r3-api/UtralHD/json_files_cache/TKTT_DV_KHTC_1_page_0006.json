@@ -1,0 +1,74 @@
+{
+    "Title": "DỊCH VỤ THU HỘ NGÂN SÁCH NHÀ NƯỚC (ĐIỆN TỬ)/ GOVERNMENT CASH COLLECTION SERVICES (ELECTRONIC) SERVICE",
+    "Thay đổi thông tin người thực hiện giao dịch Hải quan 24/7/Changing information of people performing of Customs transactions 24/7": false,
+    "Người thực hiện giao dịch 1": {
+        "Họ và tên/ Full Name": "",
+        "Loại giấy tờ tùy thân": {
+            "CMND/ ID card": false,
+            "Căn cước công dân/Resident ID Card": false,
+            "Hộ chiếu/Passport": false,
+            "Khác/ Other": false
+        },
+        "Số/ No.": "",
+        "Ngày cấp/ Issued date": "/ /",
+        "Nơi cấp/ Issued by": "",
+        "Chức vụ/ Position": "",
+        "Số điện thoại di động/Mobile No.": "",
+        "Email": ""
+    },
+    "Người thực hiện giao dịch 2": {
+        "Họ và tên/ Full Name": "",
+        "Loại giấy tờ tùy thân": {
+            "CMND/ ID card": false,
+            "Căn cước công dân/Resident ID Card": false,
+            "Hộ chiếu/Passport": false,
+            "Khác/ Other": false
+        },
+        "Số/ No.": "",
+        "Ngày cấp/ Issued date": "/ /",
+        "Nơi cấp/ Issued by": "",
+        "Chức vụ/ Position": "",
+        "Số điện thoại di động/Mobile No.": "",
+        "Email": ""
+    },
+    "Thay đổi số tài khoản chỉ định/ Change of specify account": false,
+    "Tài khoản số 01/ Account No 01": "",
+    "Tài khoản số 02/ Account No 02": "",
+    "Đề nghị chấm dứt sử dụng dịch vụ/ Proposing to terminate the service": {
+        "checkbox": false,
+        "Nộp thuế điện tử với Tổng cục Thuế / Electronic tax payment to the General Department of Taxation": false,
+        "Nộp thuế điện tử với Tổng cục Hải quan (Hải quan 24/7)/ Electronic tax payment to the General Department of Customs (Customs 24/7)": false
+    },
+    "Dịch vụ trích nợ tự động 1": {
+        "Thu tiền / Collect bill": "",
+        "Hủy/ Cancel": false,
+        "Thêm/ Add": false,
+        "Mã KH/Số hợp đồng/Customer code/ Contract No.": "",
+        "Người thụ hưởng/ Beneficiary": "",
+        "Ngày trích nợ/ Debit date": "",
+        "Thay đổi tài khoản thanh toán chỉ định/Change the specified account": ""
+    },
+    "Dịch vụ trích nợ tự động 2": {
+        "Thu tiền / Collect bill": "",
+        "Hủy/ Cancel": false,
+        "Thêm/ Add": false,
+        "Mã KH/Số hợp đồng/Customer code/ Contract No.": "",
+        "Người thụ hưởng/ Beneficiary": "",
+        "Ngày trích nợ/ Debit date": "",
+        "Thay đổi tài khoản thanh toán chỉ định/Change the specified account": ""
+    },
+    "Dịch vụ trích nợ tự động 3": {
+        "Thu tiền / Collect bill": "",
+        "Hủy/ Cancel": false,
+        "Thêm/ Add": false,
+        "Mã KH/Số hợp đồng/Customer code/ Contract No.": "",
+        "Người thụ hưởng/ Beneficiary": "",
+        "Ngày trích nợ/ Debit date": "",
+        "Thay đổi tài khoản thanh toán chỉ định/Change the specified account": ""
+    },
+    "GÓI DỊCH VỤ/ SERVICE PACKAGE": {
+        "Chấm dứt gói dịch vụ tài khoản/ Termination of MB Advance Account": false,
+        "Chấm dứt gói giải pháp kinh doanh/ Termination of MB Business Packages": false
+    },
+    "FreeText1": "BM03.TKTT&DV.KHTC.1\n06"
+}

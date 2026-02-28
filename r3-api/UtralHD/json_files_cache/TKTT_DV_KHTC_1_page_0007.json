@@ -1,0 +1,28 @@
+{
+    "Title": "DỊCH VỤ SỐ PHỤ TÀI KHOẢN/ACCOUNT SUBSIDIARY LEDGER SERVICE",
+    "Tài khoản đăng ký nhận sổ phụ/Account to register to receive subsidiary ledger": {
+        "Thêm/Add": false,
+        "Hủy/Cancel": false
+    },
+    "Tần suất nhận sổ phụ/Frequency of receiving subsidiary ledger": "",
+    "Email nhận sổ phụ/Receiving supplementary book Email": {
+        "Thêm/Add": false,
+        "Hủy/Cancel": false
+    },
+    "Chứng từ đăng ký nhận/Documents receiving registration": "Sao kê chi tiết tài khoản/Account Statement\nSao kê chi tiết tài khoản kèm báo nợ, báo có/Account Statement with Debit deal, Credit deal",
+    "Tạm dừng dịch vụ/Service suspension_Từ ngày/From date": "/ /",
+    "Khôi phục dịch vụ/Service recovery_Từ ngày/From date": "/ /",
+    "Chấm dứt dịch vụ/Service termination_Từ ngày/From date": "/ /",
+    "FreeText1": "D. NHẬN BIẾT VÀ CAM KẾT CỦA KHÁCH HÀNG/ CUSTOMER'S COMMITMENTS AND RESPONSIBILITY\n1. Ngoài các nội dung đăng ký tại mục B và C, các nội dung khác thực hiện theo Đề nghi kiêm hợp đồng sử dụng dịch vụ đã ký giữa MB và Khách hàng/In addition to the contents registered in section B and C, other content comply with the Application Cum Contract signed between MB and customer.\n2. Đề nghị thay đổi thông tin này là một bộ phận không tách rời của Đề nghị kiêm hợp đồng sử dụng dịch vụ ký gữa MB và Khách hàng, cùng với (i) Điều khoản điều kiện kèm theo; (ii) Điều kiện giao dịch chung được công khai tại địa điểm giao dịch và công bố trên Website của MB tại địa chỉ https://mbbank.com.vn (hoặc địa chỉ khác theo thông báo của MB) và (các) thỏa thuận, hợp đồng giao kết bằng phương tiện điện tử giữa KH và MB (nếu có) tạo thành một thỏa thuận thống nhất, có hiệu lực áp dụng giữa KH và MB. Trường hợp có khác biệt về nội dung tại các văn bản trên, Điều kiện giao dịch chung được ưu tiên áp dụng.\nThis Application for amendment of Customer's and Service's information is one of an detached division of Application Cum Contract for using services signed between MB and Customer, with (i) The term and conditions; (ii) The general transaction conditions publicized on MB's branch and MB's website at https://mbbank.com.un (or other address according to MB's notice)\nand the agreement, contract issue on the electronic channel by Customer and MB (if any) constitute a unified, valid agreement applied between Customer and MB. In case of differences in the content between these above documents, the General trading conditions ar taken precedence of application.\n3. Văn bản này được soạn thảo bằng tiếng Việt và tiếng Anh, trong đó bản tiếng Việt có giá trị pháp lý áp dụng, bản tiếng Anh có giá trị tham khảo./This document is drafted in Vietnamese and English, in which the Vietnamese version has the legal validity, the English version is for reference purpose only.",
+    "Ngày/ Date": "____ / ____ / ____",
+    "Chủ tài khoản/ Đại diện hợp pháp của tổ chức\nAccount holder/ Legal representative of organization": "(Ký, ghi rõ họ tên và đóng dấu/ Sign, full name and stamp)",
+    "FreeText2": "E. PHẦN DÀNH CHO NGÂN HÀNG/ FOR THE BANK ONLY",
+    "Nhận hồ sơ/Receive document date": "/ /",
+    "Tại quầy/At MB's counter": false,
+    "Qua Chuyên viên QHKH/Through RM": false,
+    "Chuyên viên QHKH/ Relationship management": "(Ký, họ tên/Write, sign full name)",
+    "Phòng KHDN/ Organization Customer Department": "(Ký, họ tên/Write, sign full name)",
+    "Chuyên viên tư vấn/ Consultant": "(Ký, họ tên/Write, sign full name)",
+    "NGÂN HÀNG TMCP QUÂN ĐỘI/ MILITARY COMMERCIAL JOINT STOCK BANK": "(Ký, họ tên và đóng dấu/Write, sign full name and stamp)",
+    "FreeText3": "BM03.TKTT&DV.KHTC.1\n07"
+}

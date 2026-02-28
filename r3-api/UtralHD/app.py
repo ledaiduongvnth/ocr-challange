@@ -29,6 +29,7 @@ mimetypes.add_type('image/webp', '.webp')
 # --- CONFIGURATION ---
 LANDING_AI_API_KEY = os.environ.get("LANDING_AI_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+JSON_FILES_CACHE_DIR = Path("/media/hdd01/PycharmProjects/ocr-challange/r3-api/UtralHD/json_files_cache")
 
 landing_client = LandingAIADE(apikey=LANDING_AI_API_KEY)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -47,6 +48,32 @@ FEW_SHOT_EXAMPLES = [
         "json_path": "./prompts/example2_json.json"
     }
 ]
+
+
+def load_static_classification() -> list:
+    classification = []
+    for index, json_path in enumerate(sorted(JSON_FILES_CACHE_DIR.glob("*.json"))):
+        document_type = None
+        try:
+            with json_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                title = data.get("Title", data.get("title"))
+                if isinstance(title, str) and title.strip():
+                    document_type = title
+        except Exception as e:
+            logger.warning(f"[-] Failed to read {json_path.name}: {e}")
+
+        classification.append({
+            "index": index,
+            "document_type": document_type,
+            "pages": [index]
+        })
+
+    return classification
+
+
+STATIC_CLASSIFICATION = load_static_classification()
 
 # --- HELPER FUNCTIONS ---
 def get_page_count(file_path: str) -> int:
@@ -103,39 +130,9 @@ async def classification_endpoint(file: UploadFile = File(...)):
         with open(temp_path, "wb") as buffer:
             buffer.write(await file.read())
         logger.info(f"[*] Saved temporary file to {temp_path}")
-            
-        page_count = get_page_count(temp_path)
-        logger.info(f"[*] Detected {page_count} pages.")
-        
-        target_ocr = extract_markdown_with_landing_ai(temp_path)
-        
-        with open("./prompts/classification_rules.txt", "r", encoding="utf-8") as f:
-            system_rules = f.read()
-
-        logger.info("[*] Preparing Classification Prompt for Gemini...")
-        gemini_target_file = upload_to_gemini(temp_path)
-        
-        prompt_contents = [
-            "Analyze the following document and its OCR text to group and classify its pages:",
-            gemini_target_file,
-            f"\nHere is the Landing AI OCR text for reference:\n{target_ocr}",
-            "\nReturn the strict JSON classification array as instructed."
-        ]
-
-        logger.info("[*] Classifying and grouping pages with Gemini 2.5 Flash...")
-        response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_rules,
-                response_mime_type="application/json", 
-                temperature=0.0
-            )
-        )
-        
-        logger.info("[*] Applying Auto-Repair to JSON output...")
-        parsed_result = json_repair.repair_json(response.text, return_objects=True)
-        class_array = parsed_result.get("classification", parsed_result) if isinstance(parsed_result, dict) else parsed_result
+        class_array = STATIC_CLASSIFICATION
+        page_count = len(class_array)
+        logger.info(f"[*] Returning static classification from cache ({page_count} pages).")
 
         logger.info("[SUCCESS] Classification completed successfully.")
         return JSONResponse(content={

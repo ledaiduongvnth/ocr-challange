@@ -1,33 +1,31 @@
 import argparse
+import base64
 import json
-import time
+import os
 from pathlib import Path
 from typing import Any
 
-# from google import genai
-# from google.genai import types
-
 from landingai_ade import LandingAIADE
-
 from openai import OpenAI
-
 
 # --- CONFIGURATION ---
 # The SDK uses VISION_AGENT_API_KEY by default, but we pass it explicitly.
 LANDING_AI_API_KEY = "OGZ3c201Nm1odjcxd3I3OHg4cWN5OmlFdnRlVXFZNk5maURMMk5KbHZPcWhxa0VsclpLdjZW"
-GEMINI_API_KEY = ""
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "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"
+OPENROUTER_MODEL = "google/gemini-2.5-flash"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost")
+OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "landing-ai-ocr-pipeline")
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 LANDING_RAW_MD_SUBDIR = "md"
 LANDING_RAW_JSON_SUBDIR = "json"
 
-openrouter_client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.io/api/v1",
-)
 # Initialize clients.
 landing_client = LandingAIADE(apikey=LANDING_AI_API_KEY)
-# gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+openrouter_client = OpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url=OPENROUTER_BASE_URL,
+)
 
 
 class FatalPipelineError(RuntimeError):
@@ -77,6 +75,7 @@ def is_fatal_api_error(error: Exception) -> bool:
         for code in (
             " 401 ",
             " 403 ",
+            " 405 ",
             " 429 ",
             " 500 ",
             " 502 ",
@@ -84,6 +83,7 @@ def is_fatal_api_error(error: Exception) -> bool:
             " 504 ",
             "CODE': 401",
             "CODE': 403",
+            "CODE': 405",
             "CODE': 429",
             "CODE': 500",
             "CODE': 502",
@@ -91,6 +91,7 @@ def is_fatal_api_error(error: Exception) -> bool:
             "CODE': 504",
             '"CODE": 401',
             '"CODE": 403',
+            '"CODE": 405',
             '"CODE": 429',
             '"CODE": 500',
             '"CODE": 502',
@@ -108,27 +109,39 @@ def is_fatal_api_error(error: Exception) -> bool:
                 numeric = int(value)
             except (TypeError, ValueError):
                 continue
-            if numeric in (401, 403, 429, 500, 502, 503, 504):
+            if numeric in (401, 403, 405, 429, 500, 502, 503, 504):
                 return True
 
     return False
 
 
-# def upload_to_gemini(file_path: Path):
-#     """Upload a file to Gemini and wait until processing is complete."""
-#     print(f"[*] Uploading {file_path} to Gemini...")
-#     uploaded_file = gemini_client.files.upload(file=str(file_path))
+def _get_mime_type(path: Path) -> str:
+    return {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp",
+        ".tif": "image/tiff",
+        ".tiff": "image/tiff",
+    }.get(path.suffix.lower(), "application/octet-stream")
 
-#     while uploaded_file.state.name == "PROCESSING":
-#         print(".", end="", flush=True)
-#         time.sleep(2)
-#         uploaded_file = gemini_client.files.get(name=uploaded_file.name)
 
-#     if uploaded_file.state.name == "FAILED":
-#         raise RuntimeError(f"Gemini file processing failed for {file_path}.")
-
-#     print("\n[+] Uploaded successfully.")
-#     return uploaded_file
+def upload_to_gemini(file_path: Path) -> dict[str, Any]:
+    """
+    Prepare a local file as a multimodal content block for OpenRouter.
+    Kept with the same function name to keep this file close to commercial.py.
+    """
+    print(f"[*] Uploading {file_path} to OpenRouter...")
+    file_bytes = file_path.read_bytes()
+    encoded = base64.b64encode(file_bytes).decode("ascii")
+    mime_type = _get_mime_type(file_path)
+    data_url = f"data:{mime_type};base64,{encoded}"
+    print("[+] Uploaded successfully.")
+    if mime_type.startswith("image/"):
+        return {"type": "image_url", "image_url": {"url": data_url}}
+    return {"type": "file", "file": {"filename": file_path.name, "file_data": data_url}}
 
 
 def extract_markdown_with_landing_ai(file_path: Path) -> tuple[str, Any]:
@@ -139,51 +152,53 @@ def extract_markdown_with_landing_ai(file_path: Path) -> tuple[str, Any]:
     return response.markdown, response
 
 
-# def convert_to_json_multimodal(
-#     target_file_path: Path,
-#     target_ocr_text: str,
-#     example_file_path: Path,
-#     prompts_dir: Path,
-# ) -> dict:
-#     """Generate strict JSON from OCR text + source document using Gemini."""
-#     print("[*] Preparing multimodal prompt for Gemini...")
+def _extract_openrouter_text(response: Any) -> str:
+    """Extract text content robustly from OpenRouter chat completion response."""
+    content = response.choices[0].message.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                chunks.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    chunks.append(text)
+        return "".join(chunks)
+    return str(content)
 
-#     system_rules = (prompts_dir / "system_rules.txt").read_text(encoding="utf-8")
-#     example_ocr = (prompts_dir / "pvcombank_example_ocr.txt").read_text(encoding="utf-8")
-#     example_json = (prompts_dir / "pvcombank_example_json.json").read_text(encoding="utf-8")
 
-#     gemini_example_file = upload_to_gemini(example_file_path)
-#     gemini_target_file = upload_to_gemini(target_file_path)
+def _parse_json_text(response_text: str) -> dict:
+    """Parse JSON even when the model wraps output in markdown fences."""
+    candidate = response_text.strip()
 
-#     prompt_contents = [
-#         "### ONE-SHOT EXAMPLE ###\nHere is the reference document image/PDF:",
-#         gemini_example_file,
-#         f"\nHere is the Landing AI OCR output for the reference document:\n{example_ocr}",
-#         f"\nHere is the exact Target JSON Output you must generate based on the rules:\n{example_json}",
-#         "\n### YOUR TURN ###\nNow apply the exact same logic. Here is the target document image/PDF you need to process:",
-#         gemini_target_file,
-#         f"\nHere is the Landing AI OCR output for the target document:\n{target_ocr_text}",
-#         "\nBased on the rules, the example, the target image, and the target OCR, generate the strict JSON output.",
-#     ]
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        candidate = "\n".join(lines).strip()
 
-#     print("[*] Generating JSON structure with Gemini 2.5 Flash...")
-#     response = gemini_client.models.generate_content(
-#         model="gemini-2.5-flash",
-#         contents=prompt_contents,
-#         config=types.GenerateContentConfig(
-#             system_instruction=system_rules,
-#             response_mime_type="application/json",
-#             temperature=0.1,
-#         ),
-#     )
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        for marker in ("{", "["):
+            idx = candidate.find(marker)
+            if idx == -1:
+                continue
+            try:
+                parsed, _ = decoder.raw_decode(candidate[idx:])
+                return parsed
+            except json.JSONDecodeError:
+                continue
+        raise
 
-#     try:
-#         parsed_json = json.loads(response.text)
-#         print("[+] JSON structuring complete.")
-#         return parsed_json
-#     except json.JSONDecodeError as error:
-#         print(f"[-] Gemini failed to return valid JSON: {response.text}")
-#         raise error
+    return parsed
+
 
 def convert_to_json_multimodal(
     target_file_path: Path,
@@ -192,79 +207,58 @@ def convert_to_json_multimodal(
     prompts_dir: Path,
 ) -> dict:
     """Generate strict JSON from OCR text + source document using OpenRouter Gemini."""
-    print("[*] Preparing multimodal prompt for OpenRouter Gemini...")
-    
+    print("[*] Preparing multimodal prompt for Gemini...")
+
     system_rules = (prompts_dir / "system_rules.txt").read_text(encoding="utf-8")
     example_ocr = (prompts_dir / "pvcombank_example_ocr.txt").read_text(encoding="utf-8")
     example_json = (prompts_dir / "pvcombank_example_json.json").read_text(encoding="utf-8")
-    
-    # Encode files to base64
-    import base64
-    with open(example_file_path, "rb") as f:
-        example_data = base64.standard_b64encode(f.read()).decode("utf-8")
-    with open(target_file_path, "rb") as f:
-        target_data = base64.standard_b64encode(f.read()).decode("utf-8")
-    
-    # Detect MIME type
-    def get_mime_type(path: Path) -> str:
-        mime_types = {
-            ".pdf": "application/pdf",
-            ".png": "image/png",
-            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-            ".webp": "image/webp", ".bmp": "image/bmp",
-            ".tif": "image/tiff", ".tiff": "image/tiff",
-        }
-        return mime_types.get(path.suffix.lower(), "application/octet-stream")
-    
-    example_mime = get_mime_type(example_file_path)
-    target_mime = get_mime_type(target_file_path)
-    
-    print("[*] Generating JSON with OpenRouter Gemini 2.5 Flash...")
+
+    gemini_example_file = upload_to_gemini(example_file_path)
+    gemini_target_file = upload_to_gemini(target_file_path)
+
+    user_content: list[dict[str, Any]] = [
+        {"type": "text", "text": "### ONE-SHOT EXAMPLE ###\nHere is the reference document image/PDF:"},
+        gemini_example_file,
+        {"type": "text", "text": f"\nHere is the Landing AI OCR output for the reference document:\n{example_ocr}"},
+        {"type": "text", "text": f"\nHere is the exact Target JSON Output you must generate based on the rules:\n{example_json}"},
+        {
+            "type": "text",
+            "text": "\n### YOUR TURN ###\nNow apply the exact same logic. Here is the target document image/PDF you need to process:",
+        },
+        gemini_target_file,
+        {"type": "text", "text": f"\nHere is the Landing AI OCR output for the target document:\n{target_ocr_text}"},
+        {
+            "type": "text",
+            "text": "\nBased on the rules, the example, the target image, and the target OCR, generate the strict JSON output.",
+        },
+    ]
+
+    print("[*] Generating JSON structure with Gemini 2.5 Flash...")
+    messages = [
+        {"role": "system", "content": system_rules},
+        {"role": "user", "content": user_content},
+    ]
+    request_headers = {
+        "HTTP-Referer": OPENROUTER_HTTP_REFERER,
+        "X-Title": OPENROUTER_APP_NAME,
+    }
     response = openrouter_client.chat.completions.create(
-        model="google/gemini-2.5-flash",
-        messages=[
-            {
-                "role": "system",
-                "content": system_rules,
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"### ONE-SHOT EXAMPLE ###\nReference OCR:\n{example_ocr}\nTarget JSON format:\n{example_json}\n\n### YOUR TURN ###\nTarget OCR:\n{target_ocr_text}\nGenerate the JSON output.",
-                    },
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": example_mime,
-                            "data": example_data,
-                        },
-                    },
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": target_mime,
-                            "data": target_data,
-                        },
-                    },
-                ],
-            },
-        ],
+        model=OPENROUTER_MODEL,
+        messages=messages,
         temperature=0.1,
-        response_format={"type": "json_object"},
+        extra_headers=request_headers,
     )
-    
+
+    response_text = _extract_openrouter_text(response)
     try:
-        parsed_json = json.loads(response.choices[0].message.content)
+        parsed_json = _parse_json_text(response_text)
         print("[+] JSON structuring complete.")
         return parsed_json
     except json.JSONDecodeError as error:
-        print(f"[-] OpenRouter failed to return valid JSON: {response.choices[0].message.content}")
+        print(f"[-] Gemini failed to return valid JSON: {response_text}")
         raise error
-    
+
+
 def _to_jsonable(value: Any) -> Any:
     """Best-effort converter for arbitrary SDK objects into JSON-serializable data."""
     if value is None or isinstance(value, (str, int, float, bool)):

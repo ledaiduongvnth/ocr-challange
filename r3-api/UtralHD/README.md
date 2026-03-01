@@ -1,73 +1,77 @@
 # IDP Document Classification & Extraction API
 
-This repository contains a containerized API built with FastAPI, Landing AI (Vision/OCR), and Google Gemini 2.5 Flash (Semantic Structuring) for Intelligent Document Processing (IDP).
+This project provides a FastAPI service for cache-based document classification and extraction.
 
-The system provides two distinct endpoints to classify multi-page documents and extract structured key-value pairs and tables into strict JSON formats according to the committee's labeling guidelines.
+Current implementation is offline and deterministic:
+- `/classification` reads JSON files from `json_files_cache`, applies document type matching rules, and returns grouped page classification.
+- `/extract` reads one cached JSON file by uploaded filename stem and returns it as response data.
 
 ## 📁 Project Structure
-Ensure your directory looks like this before building:
 
     project_root/
     ├── Dockerfile
     ├── requirements.txt
     ├── app.py
-    └── prompts/
-        ├── system_rules.txt
-        ├── classification_rules.txt
-        ├── example1_image.webp
-        ├── example1_ocr.txt
-        ├── example1_json.json
-        ├── example2_image.webp
-        ├── example2_ocr.txt
-        └── example2_json.json
+    ├── app_utils.py
+    ├── document_types.py
+    └── json_files_cache/
+        ├── split_document_page_0.json
+        ├── split_document_page_1.json
+        └── ...
+
+## ⚙️ Configuration
+
+- `JSON_FILES_CACHE_DIR` (optional): absolute path to cache directory.
+- Default value:
+  `/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/json_files_cache`
 
 ## 🚀 1. Build and Run the Docker Container
 
-This project uses Docker to ensure a consistent environment. You will need your API keys for Landing AI and Google Gemini.
+**Step 1: Build image**
 
-**Step 1: Build the Docker Image**
-Open your terminal in the root directory and run:
-    
     docker build -t idp_api .
 
-**Step 2: Run the Container**
-Start the container and pass your API keys as environment variables. The API will be exposed on port `47924`.
-    
+**Step 2: Run container**
+
     docker run -p 47924:8000 \
-      -e LANDING_AI_API_KEY="your_landing_ai_api_key_here" \
-      -e GEMINI_API_KEY="your_gemini_api_key_here" \
+      -e JSON_FILES_CACHE_DIR="/app/json_files_cache" \
       idp_api
 
-*(Note: The container exposes port 8000 internally, which is mapped to port 47924 on your host machine).*
+If you use the default cache path inside your environment, you can omit `JSON_FILES_CACHE_DIR`.
 
 ---
 
 ## 🧪 2. How to Test and Use the API
 
-Once the container is running, the API is accessible at `http://localhost:47924`.
+Once running, API base URL is:
+`http://localhost:47924`
 
-### Option A: Swagger UI (Interactive Browser Testing)
-The easiest way to test the API is to open your web browser and navigate to:
-👉 **http://localhost:47924/docs**
+### Option A: Swagger UI
 
-This provides a visual interface where you can upload PDFs and test the `/classification` and `/extract` endpoints with a click of a button.
+Open:
+`http://localhost:47924/docs`
 
 ### Option B: API Endpoints & cURL Examples
 
 #### Endpoint 1: `/classification`
-* **Method:** `POST`
-* **Input:** Multipart form data containing a `file` (PDF, JPG, PNG, WEBP).
-* **Description:** Analyzes a multi-page document and groups consecutive pages into defined document categories.
+- **Method:** `POST`
+- **Input:** multipart form-data
+  - `file`: any uploaded file (kept for API compatibility).
+- **Description:**
+  - Reads all `*.json` files in cache directory.
+  - Extracts title/document type from JSON keys: `document_type`, `DocumentType`, `Title`, `title`.
+  - Applies hard + soft matching to predefined classes.
+  - Uses title pages as separators and groups consecutive untitled pages into nearest previous titled group.
 
 **cURL Example:**
-    
+
     curl -X POST "http://localhost:47924/classification" \
       -H "accept: application/json" \
       -H "Content-Type: multipart/form-data" \
       -F "file=@test_document.pdf"
 
-**Expected Output:**
-    
+**Expected Output (example):**
+
     {
       "status": "success",
       "page_count": 5,
@@ -86,46 +90,61 @@ This provides a visual interface where you can upload PDFs and test the `/classi
     }
 
 #### Endpoint 2: `/extract`
-* **Method:** `POST`
-* **Input:** * `file`: The cut/separated document (PDF or Image).
-    * `document_type`: The string representing the document class (e.g., `GIAY_RUT_TIEN`).
-* **Description:** Extracts key-value pairs, nested form grids, and tables into a strict JSON structure.
+- **Method:** `POST`
+- **Input:** multipart form-data
+  - `file`: uploaded document page (PDF/Image)
+  - `document_type`: request field for client compatibility (not used for extraction logic)
+- **Description:**
+  - Maps uploaded filename stem to cache JSON filename.
+  - Example: `split_document_page_0.pdf` -> `split_document_page_0.json`.
+  - Returns cached JSON as `data`.
+  - Deletes that cache JSON file at end of request.
 
 **cURL Example:**
-    
+
     curl -X POST "http://localhost:47924/extract" \
       -H "accept: application/json" \
       -H "Content-Type: multipart/form-data" \
       -F "file=@split_document_page_0.pdf" \
       -F "document_type=GIAY_RUT_TIEN"
 
-**Expected Output:**
-    
+**Expected Output (example):**
+
     {
       "status": "success",
       "data": {
         "Title": "GIẤY RÚT TIỀN",
         "Tên tài khoản": "NGUYEN VIET HUNG",
-        "Số tài khoản": "100013014668",
-        "Table1": [
-          {
-             "Mệnh giá (Denomination)": "500,000",
-             "Số tờ (Quantity)": "2,000",
-             "Thành tiền (Amount)": "1,000,000,000"
-          }
-        ],
-        "Tổng cộng (Total)": [
-          {
-             "Thành tiền (Amount)": "1,000,000,000"
-          }
-        ]
+        "Số tài khoản": "100013014668"
       }
     }
 
+## 🧾 Supported Document Type Codes
+
+- `LIET_KE_GIAO_DICH`
+- `SO_QUY`
+- `GIAY_DE_NGHI_TIEP_QUY`
+- `GIAY_RUT_TIEN`
+- `GIAY_GUI_TIEN_TIET_KIEM`
+- `PHIEU_HACH_TOAN`
+- `GIAY_DE_NGHI_SU_DUNG_DICH_VU_INTERNET_BANKING`
+- `GIAY_DE_NGHI_THAY_DOI_THONG_TIN_DICH_VU_INTERNET_BANKING`
+- `TO_TRINH_THAM_DINH_TIN_DUNG`
+- `CCCD`
+- `LENH_CHUYEN_TIEN`
+- `GIAY_PHONG_TOA_TAM_KHOA_TAI_KHOAN`
+- `OTHER`
+
 ## 🛠️ Error Handling
-The API utilizes an auto-repairing mechanism for JSON payloads generated by the LLM to prevent syntax crashes. If a critical failure occurs (e.g., invalid API keys or network drops), the API will return a standardized error response:
-    
+
+Standard error response:
+
     {
       "status": "error",
       "message": "Description of the error..."
     }
+
+Common cases:
+- Cache JSON file not found for `/extract` -> `404`
+- Invalid cache JSON format -> `500`
+- Invalid upload filename -> `400`

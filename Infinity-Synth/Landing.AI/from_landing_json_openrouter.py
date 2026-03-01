@@ -12,7 +12,8 @@ def derive_source_stem(landing_json_file: Path) -> str:
     """Map '<name>_parse_output.json' -> '<name>' for output/image lookup."""
     stem = landing_json_file.stem
     suffix = "_parse_output"
-    return stem[: -len(suffix)] if stem.endswith(suffix) else stem
+    suffix2 = ".landing"
+    return stem[: -len(suffix)] if stem.endswith(suffix) else stem[: -len(suffix2)] if stem.endswith(suffix2) else stem
 
 
 def extract_markdown_from_landing_json(landing_payload: dict) -> str:

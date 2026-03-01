@@ -36,7 +36,10 @@ async def classification_endpoint(file: UploadFile = File(...)):
     temp_path: Path | None = None
 
     try:
-        temp_path = await save_upload_to_temp(file, TMP_DIR, logger)
+        temp_path = save_upload_to_temp(file, TMP_DIR, logger)
+        # TODO OCR extract key-value label and save to JSON_FILES_CACHE_DIR
+
+        ###################################################################
         class_array = load_static_classification(JSON_FILES_CACHE_DIR, logger)
         page_count = sum(len(item.get("pages", [])) for item in class_array)
 

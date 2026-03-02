@@ -2,7 +2,7 @@
 # Fully pinned for reproducibility
 # Base image: vllm/vllm-openai:latest@sha256:014a95f21c9edf6abe0aea6b07353f96baa4ec291c427bb1176dc7c93a85845c
 # Contains: vllm 0.11.0, torch 2.8.0, numpy 2.2.6, setuptools 79.0.1
-FROM vllm/vllm-openai:v0.11.0
+FROM vllm/vllm-openai:v0.16.0
 
 ENV MODEL_ID="datalab-to/chandra" \
     MODEL_DOWNLOAD_DIR="/tmp/chandra/models" \

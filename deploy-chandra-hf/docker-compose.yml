@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   chandra-vllm:
     build:
@@ -10,18 +8,20 @@ services:
     ports:
       - "7888:7888"
     volumes:
-      - /media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/models/chandra_lora_merge:/models/chandra-custom:ro
+      - /media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/models/chandra_lora_final_epoch1_merge:/models/chandra-custom:ro
     environment:
-      # Override as needed
       PORT: 7888
       MODEL_ID: /models/chandra-custom
-      VLLM_DTYPE: float16
-      VLLM_GPU_MEMORY_UTILIZATION: 0.75
+      VLLM_DTYPE: bfloat16
+      VLLM_GPU_MEMORY_UTILIZATION: 0.85
       TENSOR_PARALLEL_SIZE: 2
+      MAX_MODEL_LEN: 10240
+      VLLM_MAX_NUM_SEQS: 1
+      VLLM_MAX_BATCHED_TOKENS: 32768
       VLLM_EXTRA_ARGS: "--trust-remote-code"
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
-              device_ids: ["1"]
+              device_ids: ["0","1"]

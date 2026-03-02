@@ -144,6 +144,55 @@ def _safe_json_parse(text: str) -> Any:
             return {"raw_output": text}
 
 
+def _post_json(
+    endpoint: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_sec: int,
+) -> dict[str, Any]:
+    req = request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=timeout_sec) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"vLLM HTTP {e.code}: {err_body}") from e
+    except Exception as e:
+        raise RuntimeError(f"vLLM request failed: {e}") from e
+
+
+def _get_finish_reason(resp_json: dict[str, Any]) -> str | None:
+    choices = resp_json.get("choices")
+    if isinstance(choices, list) and choices:
+        choice0 = choices[0]
+        if isinstance(choice0, dict):
+            return choice0.get("finish_reason")
+    return None
+
+
+def _build_meta(
+    resp_json: dict[str, Any],
+    model: str,
+    initial_max_tokens: int,
+    used_max_tokens: int,
+    retried_for_length: bool,
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "finish_reason": _get_finish_reason(resp_json),
+        "usage": resp_json.get("usage"),
+        "max_tokens_initial": initial_max_tokens,
+        "max_tokens_used": used_max_tokens,
+        "retried_for_length": retried_for_length,
+    }
+
+
 def call_vllm(
     image_path: Path,
     base_url: str,
@@ -156,60 +205,77 @@ def call_vllm(
     endpoint = base_url.rstrip("/") + "/chat/completions"
     image_data_url = _encode_image_to_data_url(image_path)
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": USER_PROMPT},
-                    {"type": "image_url", "image_url": {"url": image_data_url}},
-                ],
-            },
-        ],
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    req = request.Request(
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
+    initial_max_tokens = max_tokens
+    current_max_tokens = max_tokens
+    retried_for_length = False
 
-    try:
-        with request.urlopen(req, timeout=timeout_sec) as resp:
-            body = resp.read().decode("utf-8")
-            resp_json = json.loads(body)
-    except error.HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"vLLM HTTP {e.code}: {err_body}") from e
-    except Exception as e:
-        raise RuntimeError(f"vLLM request failed: {e}") from e
+    for attempt in range(2):
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": USER_PROMPT},
+                        {"type": "image_url", "image_url": {"url": image_data_url}},
+                    ],
+                },
+            ],
+            "temperature": temperature,
+            "max_tokens": current_max_tokens,
+            "response_format": {"type": "json_object"},
+        }
 
-    raw_text = _extract_content(resp_json)
-    parsed = _safe_json_parse(raw_text)
+        try:
+            resp_json = _post_json(endpoint, payload, headers, timeout_sec)
+        except RuntimeError as e:
+            # Some vLLM/OpenAI-compatible servers may reject response_format.
+            if "response_format" in str(e):
+                payload.pop("response_format", None)
+                resp_json = _post_json(endpoint, payload, headers, timeout_sec)
+            else:
+                raise
 
-    # out = {
-    #     "result": parsed,
-    #     "meta": {
-    #         "model": model,
-    #         "finish_reason": (
-    #             resp_json.get("choices", [{}])[0].get("finish_reason")
-    #             if isinstance(resp_json.get("choices"), list) and resp_json.get("choices")
-    #             else None
-    #         ),
-    #         "usage": resp_json.get("usage"),
-    #     },
-    # }
-    out = parsed
-    return out
+        raw_text = _extract_content(resp_json)
+        parsed = _safe_json_parse(raw_text)
+        finish_reason = _get_finish_reason(resp_json)
+
+        if finish_reason == "length" and attempt == 0:
+            retried_for_length = True
+            current_max_tokens = max(current_max_tokens + 256, int(current_max_tokens * 1.5))
+            logger.warning(
+                "finish_reason=length for %s. Retrying once with max_tokens=%d",
+                image_path.name,
+                current_max_tokens,
+            )
+            continue
+
+        return {
+            "result": parsed,
+            "meta": _build_meta(
+                resp_json=resp_json,
+                model=model,
+                initial_max_tokens=initial_max_tokens,
+                used_max_tokens=current_max_tokens,
+                retried_for_length=retried_for_length,
+            ),
+        }
+
+    # Defensive fallback (loop should return above).
+    return {
+        "result": {"error": "Unexpected empty response after retries"},
+        "meta": {
+            "model": model,
+            "max_tokens_initial": initial_max_tokens,
+            "max_tokens_used": current_max_tokens,
+            "retried_for_length": retried_for_length,
+        },
+    }
 
 
 def main() -> None:

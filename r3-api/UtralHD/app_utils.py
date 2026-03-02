@@ -55,16 +55,34 @@ def get_cached_json_path(upload_filename: str, cache_dir: Path) -> Path:
     return cache_dir / f"{Path(safe_name).stem}.json"
 
 
-def extract_raw_document_type(data: Any) -> str | None:
-    """Read document type candidates from cached JSON data."""
-    if not isinstance(data, dict):
+def _extract_raw_document_type(data: Any) -> str | None:
+    if isinstance(data, dict):
+        for key in ("document_type", "DocumentType", "Title", "title"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+
+        # Handle wrapped outputs like {"result": {...}} from inference pipelines.
+        for nested_key in ("result", "data"):
+            nested_value = data.get(nested_key)
+            nested_match = _extract_raw_document_type(nested_value)
+            if nested_match:
+                return nested_match
+
         return None
 
-    for key in ("document_type", "DocumentType", "Title", "title"):
-        value = data.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
+    if isinstance(data, list):
+        for item in data:
+            nested_match = _extract_raw_document_type(item)
+            if nested_match:
+                return nested_match
+
     return None
+
+
+def extract_raw_document_type(data: Any) -> str | None:
+    """Read document type candidates from cached JSON data."""
+    return _extract_raw_document_type(data)
 
 
 def resolve_document_type_code(raw_value: str | None) -> str:

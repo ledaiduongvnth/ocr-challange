@@ -1,47 +1,48 @@
 """
-Finetune Chandra (Qwen3-VL) - Image -> JSON voi table handling day du.
+Finetune Chandra (Qwen3-VL) - Image -> JSON.
 
-Ho tro:
-  - 2x NVIDIA RTX 6000 Ada (2x 49GB) voi DDP
-  - Table handling: form grid vs true table, merged cells, nested tables
-  - Image augmentation cho table/form images
-  - Early stopping, epoch loss logging
-  - Weighted loss cho samples co bang phuc tap
+Load thang anh tu disk (da augment truoc bang augument.py).
+Khong co runtime augmentation.
 
 Cach chay:
-    pip install transformers accelerate peft bitsandbytes pillow tqdm datasets deepspeed opencv-python
+    pip install transformers accelerate peft bitsandbytes pillow datasets deepspeed
+
+    # Dung data goc hoac data da augment (chi can sua data_dir trong FinetuneConfig)
+    # data_dir/
+    #   images/   <- anh (.jpg/.png/...)
+    #   label/    <- JSON label (cung ten stem voi anh)
 
     # 2 GPU (khuyen nghi)
-    torchrun --nproc_per_node=2 finetune_chandra.py
+    torchrun --nproc_per_node=2 finetune_train_final.py
 
     # 1 GPU
-    python finetune_chandra.py
+    python finetune_train_final.py
 """
 
 import io
-import os
 import json
-import random
 import logging
-from pathlib import Path
+import os
+import random
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import torch
 from PIL import Image, ImageEnhance, ImageFilter
 from torch.utils.data import Dataset
 from transformers import (
-    AutoProcessor,
     AutoModelForImageTextToText,
-    TrainingArguments,
-    Trainer,
+    AutoProcessor,
     BitsAndBytesConfig,
-    TrainerCallback,
-    TrainerState,
-    TrainerControl,
     EarlyStoppingCallback,
+    Trainer,
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
+    TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, TaskType, prepare_model_for_kbit_training
+from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,97 +50,72 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
+
 
 # ============================================================
 # SYSTEM PROMPT - day du table handling rules
 # ============================================================
-SYSTEM_PROMPT = """You are an OCR assistant. Extract all information from the document image and return it as a single valid JSON object.
-
-OUTPUT FORMAT:
-- Return ONLY valid JSON.
+SYSTEM_PROMPT = """
+You are an OCR assistant. Your task is Extract all information from the document image and return it as a single strictly formatted valid JSON object.
+### OUTPUT FORMAT:
+- Return ONLY strictly formatted valid JSON object.
 - Do NOT output HTML.
 - Do NOT wrap in markdown or code blocks.
 - Do NOT add explanations.
-- Preserve exact original text (%, currency symbols, thousand separators, parentheses).
-- Maintain correct reading order (top-to-bottom, left-to-right).
-- If a value is visually empty, use "".
 
-========================
-TABLE HANDLING (STRICT)
-========================
+### CRITICAL JSON FORMATTING
+Every item in a dictionary MUST be a valid key-value pair separated by a colon (e.g., `"Key": "Value"`). NEVER output a standalone string without a colon and a value inside an object. 
 
-1) FIRST distinguish FORM GRID vs TRUE TABLE:
-   TRUE TABLE:
-     - Has consistent column headers.
-     - Contains repeated row records aligned under those headers.
-     - Multiple rows share the same column structure.
-   FORM GRID / BOXED LAYOUT:
-     - Is still key-value structure.
-     - Even if visually drawn with borders or boxes.
-     - Includes signature blocks, approval sections, checkbox areas.
-     - DO NOT convert these into tables.
-     - Represent them as key-value JSON structure.
-   Only TRUE TABLES should be converted into JSON tables.
+### STRICT COMMITTEE EXTRACTION GUIDELINES
 
-2) TABLE INSIDE FORM SECTION:
-   If a TRUE TABLE appears inside a form section
-   (e.g., inside a field like "So tien (With amount)"):
-   - Nest that table inside that section object.
-   - Do NOT output it as a top-level table.
-   Example:
-   {
-     "So tien (With amount)": {
-       "Table1": [...]
-     }
-   }
+1. **Document Title:** Always find MAIN DOCUMENT TITLE (tên tài liệu / tên chứng từ) of the WHOLE document if it exists.The title must be in Vietnamese(The title may also contain an English noun) and English translation(if present near the Vietnamese title) is optional. Assign it to the root key `"Title"`. 
+   - Note: Landing AI sometimes hides the title inside logo tags (e.g., `<::logo: GIẤY LĨNH TIỀN...::>`). You MUST extract it from there. 
+   - HARD RULES (reject candidates that violate any rule):
+      + Reject section headings / numbering:
+         * title_vi must NOT start with any digit (0-9)
+         * title_vi must NOT start with: "A.", "A,", "B.", "B,", "1.", "1,", "I.", "I,", "II.", "II," (case-insensitive)
+         * Also reject common section prefixes: "III.", "IV.", "V.", "(1)", "1)", "a)", "-", "•", "*"
+      + Reject weird/special characters:
+         * Ignore any text containing characters outside Vietnamese letters (including diacritics), spaces, and these punctuation marks only: "-", ",", ".". Title may contains "/", so "/" is allowed.
+         * If text contains any of: "_ @ # $ % ^ & * = + < > { } : [ ] ?" then it is NOT a title candidate.
+      + Title should be a document name, not a sentence:
+         * Must not look like a paragraph (reject if very long or contains many commas)
+      + Prefer near to the top-of-page + big font and uppercase:
+         * Only consider blocks in the top area of the page (top 25% by position).
+         * The best title is usually the block(s) with a big font_size in that top area.
+         * If the title spans multiple lines, merge consecutive blocks that are close vertically and have similar font_size.
 
-3) TABLE NAMING:
-   - Use the table explicit title/caption/name as the JSON key.
-   - If no explicit title exists, assign sequential fallback names: Table1, Table2, ...
+2. **Noise & Artifact Removal:** - Completely ignore visual noise (watermarks, QR codes, purely visual logos).
+   - *Exception:* If any logo or attestation contains actual textual data (like a signature, a stamp stating "ĐÃ CHI TIỀN", or a title), you MUST extract that text.
 
-4) TABLE FORMAT:
-   Each TRUE TABLE must be formatted as:
-   "Table Name": [
-     {
-       "Column Header 1": "value",
-       "Column Header 2": "value"
-     }
-   ]
-   STRICT RULES:
-   - Each row = one dictionary.
-   - Keys MUST be flat.
-   - Keys MUST exactly match column headers.
-   - Do NOT nest columns.
+3. **Sections vs. Root-Level Keys vs. Tables (CRITICAL):**
+   - **Floating Key-Value Pairs (Root Level):** If key-value pairs are loosely listed on the page WITHOUT a visual bounding box/square table and WITHOUT a highlighted section name, they MUST remain as flat, root-level keys. Do NOT arbitrarily group them into "Section1".
+   - **Form Grids (Sections):** You can ONLY group items into a Section if they are visually enclosed in a drawn square/box OR fall under a clear, highlighted section heading. Group these under their explicit heading. If a valid enclosed box lacks a heading, use `"Section1"`, `"Section2"`.
+   - **True Tables:** Only structures with repeated row records under consistent column headers are tables. Name them using the explicit caption above them, or `"Table1"` if unnamed. 
+   - **Nesting:** If a table or a free text block appears *inside* a valid form section, nest it as a child of that section.
 
-5) COLUMN ALIGNMENT:
-   - Derive canonical column structure from header row.
-   - Every row MUST follow the same structure.
-   - If missing value -> use "".
-   - Do NOT shift values between columns.
+4. **Table Formatting & Totals:**
+   - Format tables as a list of dictionaries. Keys inside the dictionary MUST exactly match the column headers. NEVER hallucinate or invent headers.
+   - **Merged Cells:** If a cell is visually merged across multiple columns, duplicate its value into each covered column in the JSON row.
+   - **Total Rows (SEPARATE TABLE):** If a standalone "Total" or "Tổng cộng" line appears immediately below a table, DO NOT put it inside the main table. Extract it as a *separate* table (a list containing a single dictionary). Use the exact total label as the root key, and map the values to their corresponding column headers. Example: `"Tổng cộng (Total)": [{"Thành tiền": "71,900,000"}]`.
 
-6) MERGED CELL RULE:
-   If a cell visually spans multiple columns:
-   - DUPLICATE (repeat) the merged value into EACH covered column in that JSON row.
-   - Do NOT use colspan metadata.
-   - Do NOT drop columns.
-   Example: If "100" spans Q1, Q2, Q3:
-   {"Q1": "100", "Q2": "100", "Q3": "100"}
+5. **Signatures & Approvals:** - Extract signature blocks. Use the explicit role/title as the key. 
+   - The value MUST include ALL associated text in that block, including printed names, employee IDs (e.g., "YENNT6.NCB"), stamp text, or timestamps. Preserve line breaks (e.g., `"YENNT6.NCB\nNguyễn Thị Yến"`). If no role is found, use `"Signature1"`.
 
-7) TOTAL ROW RULE:
-   If a standalone line like "Total" or "Tong cong" appears immediately below a table:
-   - Treat it as the FINAL ROW of that table.
-   - Append it inside the same table array.
-   - Do NOT output it separately.
+6. **Key-Value & Checkboxes:** - Extract key-value pairs exactly as written. If a value is missing, use an empty string `""`.
+   - Represent checkboxes as booleans (e.g., `"Loại tiền (Currency)": {"VND": true, "EUR": false}`).
+   - If there are duplicate sibling keys, append `_1`, `_2` to them.
 
-8) MULTI-SEGMENT TABLE:
-   If a table is visually split into stacked segments but shares aligned columns:
-   - Merge them into ONE logical table.
+7. **Free Text Aggregation:** - Standalone text blocks (including isolated metadata at the top or bottom of the page like Bank Names, Branch names, or Addresses) MUST be assigned to keys like `"FreeText1"`, `"FreeText2"`. DO NOT use long text blocks as keys without values.
+   - Consecutive blocks of free text must be merged into a single `FreeText` string. Preserve line breaks using `\n`. 
 
-Return a single valid JSON object."""
-
+8. **BLANK PAGE HANDLING (CRITICAL):**
+   - **Blank Page:** If you encounter a completely blank page or a page containing only visual noise/page numbers, ignore it entirely. Do not let it interrupt the extraction. Treat the pages before and after the blank page as perfectly continuous.
+   """
 USER_PROMPT = (
     "OCR this document image into structured JSON. "
-    "Apply all TABLE HANDLING rules strictly. "
+    "Apply all STRICT COMMITTEE EXTRACTION GUIDELINES strictly. "
     "Return ONLY valid JSON."
 )
 
@@ -150,13 +126,13 @@ USER_PROMPT = (
 @dataclass
 class FinetuneConfig:
     # Dataset
-    data_dir: str = "/root/khaint02/final"
+    data_dir: str = "/root/khaint02/augument_multi"
     images_subdir: str = "images"
-    labels_subdir: str = "label"
+    labels_subdir: str = "labels"
 
     # Model
     model_name: str = "/root/khaint02/model_goc"
-    output_dir: str = "/root/khaint02/chandra_finetuned"
+    output_dir: str = "/root/khaint02/chandra_lan_cuoi_win_nao"
 
     # Training
     num_train_epochs: int = 30
@@ -167,13 +143,13 @@ class FinetuneConfig:
     lr_scheduler_type: str = "cosine"
     weight_decay: float = 0.01
     max_seq_length: int = 6192
-    save_steps: int = 50
+    save_steps: int = 175
     logging_steps: int = 10
-    eval_split: float = 0.05
+    # eval_split: float = 0.05
 
     # Early stopping
-    early_stopping_patience: int = 3
-    early_stopping_threshold: float = 0.001
+    early_stopping_patience: int = 10
+    early_stopping_threshold: float = 0.0005
 
     # Save every N epochs (0 = disable)
     save_every_n_epochs: int = 3
@@ -185,7 +161,7 @@ class FinetuneConfig:
     lora_dropout: float = 0.1
     lora_target_modules: list = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj"
+        "gate_proj", "up_proj", "down_proj",
     ])
 
     # Quantization - False vi 2x49GB du chay bf16 DDP
@@ -195,12 +171,11 @@ class FinetuneConfig:
     # Multi-GPU: "ddp" hoac "deepspeed"
     multi_gpu_strategy: str = "ddp"
 
-    # Augmentation
-    use_augmentation: bool = True
-    augment_factor: int = 2  # moi anh tao them 1 ban augmented -> x2 train data
-
     # Image
     max_image_size: int = 1024  # resize anh lon de giam image tokens
+
+    # save_steps ~ 1 epoch: 1394 anh / (batch=2 * grad_accum=4 * 2GPU) = ~87 steps
+    # Dat 175 de eval moi ~1 epoch, tranh early stop qua som
 
     # Misc
     dataloader_num_workers: int = 0  # 0 tranh loi DDP worker
@@ -208,160 +183,56 @@ class FinetuneConfig:
     bf16: bool = True
     seed: int = 42
 
-
 # ============================================================
-# TABLE AUGMENTATION
+# DATASET (dung cho _SubsetDataset trong training)
 # ============================================================
-class TableAugmentation:
-    """Augmentation dac biet cho anh bang/form."""
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        augments = [
-            (0.4, self._rotate),
-            (0.3, self._add_noise),
-            (0.3, self._simulate_shadow),
-            (0.2, self._perspective_warp),
-            (0.3, self._compress_artifact),
-            (0.4, self._brightness),
-            (0.4, self._contrast),
-            (0.2, self._blur),
-        ]
-        for prob, fn in augments:
-            if random.random() < prob:
-                try:
-                    image = fn(image)
-                except Exception:
-                    pass  # giu nguyen neu augment loi
-        return image
-
-    @staticmethod
-    def _rotate(img):
-        angle = random.uniform(-3, 3)
-        return img.rotate(angle, fillcolor=(255, 255, 255), expand=False)
-
-    @staticmethod
-    def _add_noise(img):
-        arr = np.array(img, dtype=np.float32)
-        noise = np.random.normal(0, random.uniform(2, 6), arr.shape)
-        return Image.fromarray(np.clip(arr + noise, 0, 255).astype(np.uint8))
-
-    @staticmethod
-    def _simulate_shadow(img):
-        arr = np.array(img, dtype=np.float32)
-        h, w = arr.shape[:2]
-        strength = random.uniform(0.65, 0.92)
-        split = random.randint(w // 4, 3 * w // 4)
-        mask = np.ones((h, w, 1), dtype=np.float32)
-        if random.random() < 0.5:
-            mask[:, :split] = strength
-        else:
-            mask[:, split:] = strength
-        return Image.fromarray(np.clip(arr * mask, 0, 255).astype(np.uint8))
-
-    @staticmethod
-    def _perspective_warp(img):
-        try:
-            import cv2
-            arr = np.array(img)
-            h, w = arr.shape[:2]
-            m = int(min(h, w) * 0.015)
-            src = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-            dst = np.float32([
-                [random.randint(0, m), random.randint(0, m)],
-                [w - random.randint(0, m), random.randint(0, m)],
-                [w - random.randint(0, m), h - random.randint(0, m)],
-                [random.randint(0, m), h - random.randint(0, m)],
-            ])
-            M = cv2.getPerspectiveTransform(src, dst)
-            warped = cv2.warpPerspective(arr, M, (w, h), borderValue=(255, 255, 255))
-            return Image.fromarray(warped)
-        except ImportError:
-            return img
-
-    @staticmethod
-    def _compress_artifact(img):
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=random.randint(60, 88))
-        buf.seek(0)
-        return Image.open(buf).convert("RGB")
-
-    @staticmethod
-    def _brightness(img):
-        return ImageEnhance.Brightness(img).enhance(random.uniform(0.8, 1.25))
-
-    @staticmethod
-    def _contrast(img):
-        return ImageEnhance.Contrast(img).enhance(random.uniform(0.8, 1.25))
-
-    @staticmethod
-    def _blur(img):
-        return img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.3, 0.8)))
-
-
-# ============================================================
-# DATASET
-# ============================================================
-class ImageJsonDataset(Dataset):
-    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
+class _SubsetDataset(Dataset):
+    """Dataset load thang anh tu disk, khong augmentation runtime.
+    Augmentation da duoc thuc hien truoc bang augument.py va luu vao folder rieng.
+    """
 
     def __init__(
         self,
-        data_dir: str,
-        images_subdir: str,
-        labels_subdir: str,
-        processor,
+        image_paths: list[Path],
         config: FinetuneConfig,
-        is_train: bool = True,
+        processor,
+        is_train: bool,
     ):
-        self.processor = processor
         self.config = config
+        self.processor = processor
         self.is_train = is_train
-        self.augmentor = TableAugmentation() if (is_train and config.use_augmentation) else None
-        self.samples = []
 
-        images_dir = Path(data_dir) / images_subdir
-        labels_dir = Path(data_dir) / labels_subdir
+        labels_dir = Path(config.data_dir) / config.labels_subdir
+        # Chi giu cac sample co file label tuong ung
+        self.samples: list[tuple[Path, Path]] = [
+            (p, labels_dir / (p.stem + ".json"))
+            for p in image_paths
+            if (labels_dir / (p.stem + ".json")).exists()
+        ]
+        if len(self.samples) < len(image_paths):
+            missing = len(image_paths) - len(self.samples)
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "%d image(s) bi bo qua vi khong co label tuong ung", missing
+            )
 
-        image_files = sorted([
-            f for f in images_dir.iterdir()
-            if f.suffix.lower() in self.IMAGE_EXTENSIONS
-        ])
-        logger.info("Found %d images in %s", len(image_files), images_dir)
+    def __len__(self) -> int:
+        return len(self.samples)
 
-        missing = 0
-        for img_path in image_files:
-            label_path = labels_dir / (img_path.stem + ".json")
-            if not label_path.exists():
-                missing += 1
-                continue
-            self.samples.append((img_path, label_path))
+    def __getitem__(self, idx: int) -> dict:
+        img_path, label_path = self.samples[idx]
 
-        if missing:
-            logger.warning("%d images skipped (no matching label)", missing)
-        logger.info("Valid samples: %d (is_train=%s)", len(self.samples), is_train)
+        try:
+            image = Image.open(img_path).convert("RGB")
+        except Exception as e:
+            raise RuntimeError(f"Khong mo duoc anh: {img_path}") from e
 
-        # Augment factor: nhan ban train set
-        self._base_len = len(self.samples)
-        self._total_len = (
-            self._base_len * config.augment_factor if is_train else self._base_len
-        )
+        try:
+            with open(label_path, "r", encoding="utf-8") as f:
+                label_data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Label JSON loi: {label_path}") from e
 
-    def __len__(self):
-        return self._total_len
-
-    def __getitem__(self, idx):
-        real_idx = idx % self._base_len
-        is_augmented_copy = idx >= self._base_len
-
-        img_path, label_path = self.samples[real_idx]
-        image = Image.open(img_path).convert("RGB")
-
-        # Chi augment ban sao, giu nguyen ban goc
-        if is_augmented_copy and self.augmentor is not None:
-            image = self.augmentor(image)
-
-        with open(label_path, "r", encoding="utf-8") as f:
-            label_data = json.load(f)
         target_text = json.dumps(label_data, ensure_ascii=False)
 
         messages = [
@@ -375,11 +246,7 @@ class ImageJsonDataset(Dataset):
             },
             {"role": "assistant", "content": target_text},
         ]
-        return {
-            "messages": messages,
-            "image": image,
-            "target": target_text,
-        }
+        return {"messages": messages, "image": image, "target": target_text}
 
 
 # ============================================================
@@ -391,7 +258,7 @@ class VLMCollator:
         self.max_length = config.max_seq_length
         self.max_image_size = config.max_image_size
 
-    def __call__(self, batch):
+    def __call__(self, batch: list[dict]) -> dict:
         texts, images_list = [], []
         for item in batch:
             text = self.processor.apply_chat_template(
@@ -448,7 +315,7 @@ class VLMCollator:
         return img
 
     @staticmethod
-    def _find_sublist(lst, sub):
+    def _find_sublist(lst: list, sub: list) -> int:
         for i in range(len(lst) - len(sub) + 1):
             if lst[i : i + len(sub)] == sub:
                 return i
@@ -462,19 +329,16 @@ class VLMCollator:
             text = json.dumps(data)
             weight = 1.0
 
-            # Co nhieu key -> form/table phuc tap
             num_keys = text.count('":')
             if num_keys > 30:
                 weight += 0.3
             if num_keys > 60:
                 weight += 0.2
 
-            # Co nested structure (table trong form)
             depth = VLMCollator._max_depth(data)
             if depth >= 3:
                 weight += 0.3
 
-            # Co merged cells (gia tri trung lap trong cung row)
             if VLMCollator._has_merged_cells(data):
                 weight += 0.5
 
@@ -483,7 +347,7 @@ class VLMCollator:
             return 1.0
 
     @staticmethod
-    def _max_depth(obj, depth=0):
+    def _max_depth(obj, depth: int = 0) -> int:
         if isinstance(obj, dict):
             if not obj:
                 return depth
@@ -495,7 +359,7 @@ class VLMCollator:
         return depth
 
     @staticmethod
-    def _has_merged_cells(obj):
+    def _has_merged_cells(obj) -> bool:
         if isinstance(obj, list) and obj and isinstance(obj[0], dict):
             for row in obj:
                 vals = [str(v) for v in row.values() if v != ""]
@@ -518,7 +382,6 @@ class WeightedTrainer(Trainer):
         loss = outputs.loss
 
         if sample_weights is not None and loss is not None:
-            # Scale loss theo weight trung binh cua batch
             avg_weight = sample_weights.mean().to(loss.device)
             loss = loss * avg_weight
 
@@ -552,32 +415,39 @@ def get_deepspeed_config() -> dict:
 # SAVE EVERY N EPOCHS CALLBACK
 # ============================================================
 class SaveEveryNEpochsCallback(TrainerCallback):
-    """Save model sau moi N epoch vao thu muc rieng.
-    Dung de dam bao khong mat progress khi train epoch lon.
-    """
+    """Save model sau moi epoch vao thu muc rieng."""
 
     def __init__(self, save_every_n_epochs: int, output_dir: str, processor):
-        self.save_every_n_epochs = save_every_n_epochs
+        self.save_every_n_epochs = save_every_n_epochs  # giữ param để tương thích
         self.output_dir = output_dir
         self.processor = processor
+        self._last_saved_epoch = -1  # tránh save 2 lần cùng epoch
 
-    def on_epoch_end(self, args, state: TrainerState, control: TrainerControl, model=None, **kwargs):
-        epoch = int(state.epoch)
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        is_main = local_rank == 0
+    def on_epoch_end(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        model=None,
+        **kwargs,
+    ):
+        is_main = int(os.environ.get("LOCAL_RANK", 0)) == 0
+        if not is_main:
+            return
 
-        if epoch > 0 and epoch % self.save_every_n_epochs == 0:
-            save_path = os.path.join(self.output_dir, f"epoch_{epoch}")
-            if is_main:
-                logger.info("Saving epoch checkpoint -> %s", save_path)
-                os.makedirs(save_path, exist_ok=True)
-                # Unwrap model (DDP / PEFT)
-                unwrapped = model
-                if hasattr(model, "module"):
-                    unwrapped = model.module
-                unwrapped.save_pretrained(save_path)
-                self.processor.save_pretrained(save_path)
-                logger.info("Epoch %d checkpoint saved -> %s", epoch, save_path)
+        # state.epoch là float (1.0, 2.0...), dùng round() để lấy epoch nguyên
+        epoch = round(state.epoch)
+        if epoch <= 0 or epoch == self._last_saved_epoch:
+            return
+        self._last_saved_epoch = epoch
+
+        save_path = os.path.join(self.output_dir, f"epoch_{epoch}")
+        logger.info("Saving epoch checkpoint -> %s", save_path)
+        os.makedirs(save_path, exist_ok=True)
+        unwrapped = model.module if hasattr(model, "module") else model
+        unwrapped.save_pretrained(save_path)
+        self.processor.save_pretrained(save_path)
+        logger.info("Epoch %d checkpoint saved -> %s", epoch, save_path)
 
 
 # ============================================================
@@ -587,8 +457,8 @@ class EpochLossCallback(TrainerCallback):
     """In train loss va eval loss sau moi epoch."""
 
     def __init__(self):
-        self.train_losses = []
-        self._step_losses = []
+        self.train_losses: list[float] = []
+        self._step_losses: list[float] = []
 
     def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
         if logs and "loss" in logs:
@@ -598,7 +468,8 @@ class EpochLossCallback(TrainerCallback):
         epoch = int(state.epoch)
         avg = (
             sum(self._step_losses) / len(self._step_losses)
-            if self._step_losses else float("nan")
+            if self._step_losses
+            else float("nan")
         )
         self.train_losses.append(avg)
         self._step_losses = []
@@ -629,7 +500,7 @@ class EpochLossCallback(TrainerCallback):
 
 
 # ============================================================
-# MAIN
+# MAIN TRAINING
 # ============================================================
 def main():
     cfg = FinetuneConfig()
@@ -678,7 +549,7 @@ def main():
     else:
         model = AutoModelForImageTextToText.from_pretrained(
             cfg.model_name,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             trust_remote_code=True,
         )
 
@@ -698,8 +569,6 @@ def main():
         model = get_peft_model(model, lora_config)
         if is_main:
             model.print_trainable_parameters()
-
-            # Log frozen vs trainable
             frozen = sum(p.numel() for p in model.parameters() if not p.requires_grad)
             trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
             logger.info(
@@ -708,26 +577,24 @@ def main():
                 100 * trainable / (frozen + trainable),
             )
 
-    # ---- Dataset (train/val rieng biet) ----
+    # ---- Dataset split ----
     all_images = sorted([
         f for f in (Path(cfg.data_dir) / cfg.images_subdir).iterdir()
-        if f.suffix.lower() in ImageJsonDataset.IMAGE_EXTENSIONS
+        if f.suffix.lower() in SUPPORTED_EXTENSIONS
         and (Path(cfg.data_dir) / cfg.labels_subdir / (f.stem + ".json")).exists()
     ])
     random.seed(cfg.seed)
     random.shuffle(all_images)
-    val_size = max(1, int(len(all_images) * cfg.eval_split))
+    val_size = min(600, len(all_images) - 1)
     train_images = all_images[val_size:]
     val_images = all_images[:val_size]
 
     if is_main:
         logger.info(
-            "Split: %d train (x%d aug = %d effective) | %d val",
-            len(train_images), cfg.augment_factor,
-            len(train_images) * cfg.augment_factor, len(val_images),
+            "Split: %d train | %d val (load thang tu disk, khong augment runtime)",
+            len(train_images), len(val_images),
         )
 
-    # Tao dataset voi is_train flag rieng
     train_dataset = _SubsetDataset(train_images, cfg, processor, is_train=True)
     val_dataset = _SubsetDataset(val_images, cfg, processor, is_train=False)
 
@@ -812,7 +679,7 @@ def main():
 
     trainer.train()
 
-    # ---- Save ----
+    # ---- Save final ----
     if is_main:
         logger.info("Saving model to %s", cfg.output_dir)
     trainer.save_model(cfg.output_dir)
@@ -822,57 +689,7 @@ def main():
 
 
 # ============================================================
-# HELPER: SubsetDataset (train va val dung is_train rieng)
+# ENTRYPOINT
 # ============================================================
-class _SubsetDataset(Dataset):
-    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
-
-    def __init__(self, image_paths, config: FinetuneConfig, processor, is_train: bool):
-        self.config = config
-        self.processor = processor
-        self.is_train = is_train
-        self.augmentor = TableAugmentation() if (is_train and config.use_augmentation) else None
-
-        labels_dir = Path(config.data_dir) / config.labels_subdir
-        self.samples = [
-            (p, labels_dir / (p.stem + ".json"))
-            for p in image_paths
-        ]
-        self._base_len = len(self.samples)
-        self._total_len = (
-            self._base_len * config.augment_factor if is_train else self._base_len
-        )
-
-    def __len__(self):
-        return self._total_len
-
-    def __getitem__(self, idx):
-        real_idx = idx % self._base_len
-        is_aug_copy = idx >= self._base_len
-
-        img_path, label_path = self.samples[real_idx]
-        image = Image.open(img_path).convert("RGB")
-
-        if is_aug_copy and self.augmentor:
-            image = self.augmentor(image)
-
-        with open(label_path, "r", encoding="utf-8") as f:
-            label_data = json.load(f)
-        target_text = json.dumps(label_data, ensure_ascii=False)
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": USER_PROMPT},
-                ],
-            },
-            {"role": "assistant", "content": target_text},
-        ]
-        return {"messages": messages, "image": image, "target": target_text}
-
-
 if __name__ == "__main__":
     main()

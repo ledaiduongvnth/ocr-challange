@@ -8,7 +8,7 @@ services:
     ports:
       - "7888:7888"
     volumes:
-      - /media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/models/chandra_lora_final_epoch1_merge:/models/chandra-custom:ro
+      - /media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/models/chandra_lora_final_epoch2_merge:/models/chandra-custom:ro
     environment:
       PORT: 7888
       MODEL_ID: /models/chandra-custom

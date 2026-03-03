@@ -5,6 +5,7 @@ import logging
 import mimetypes
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence, Set, Tuple
 from urllib import error, request
@@ -22,7 +23,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 from PIL import Image
 from fastapi import FastAPI, File, Form, UploadFile
-from starlette.concurrency import run_in_threadpool
 
 from app_utils import (
     error_response,
@@ -49,7 +49,9 @@ def _get_positive_float_env(name: str, default: float) -> float:
 
 # API returns JSON cached by filename in this directory.
 DEFAULT_CACHE_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/json_files_cache"
+DEFAULT_LABELS_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/labels"
 JSON_FILES_CACHE_DIR = Path(os.environ.get("JSON_FILES_CACHE_DIR", DEFAULT_CACHE_DIR))
+LABELS_DIR = Path(os.environ.get("LABELS_DIR", DEFAULT_LABELS_DIR))
 TMP_DIR = Path("/tmp")
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
 
@@ -132,6 +134,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("IDP_API")
+logger.setLevel(logging.INFO)
 
 app = FastAPI(title="IDP Extraction & Classification API")
 
@@ -293,6 +296,9 @@ def detect_orientation_with_paddle(image: Image.Image) -> Optional[int]:
         return None
 
     temp_file_path = None
+    started = time.perf_counter()
+    logger.info("[*] Running orientation detection on image %dx%d", image.width, image.height)
+
     try:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
             image.save(temp_file.name)
@@ -310,14 +316,18 @@ def detect_orientation_with_paddle(image: Image.Image) -> Optional[int]:
             except OSError:
                 pass
 
+    elapsed = time.perf_counter() - started
     if not predictions:
+        logger.info("[*] Orientation detection completed in %.2fs with no prediction", elapsed)
         return None
 
     for prediction in predictions:
         angle = _extract_angle_from_paddle_result(prediction)
         if angle is not None:
+            logger.info("[*] Orientation detection completed in %.2fs, angle=%d", elapsed, angle)
             return angle
 
+    logger.info("[*] Orientation detection completed in %.2fs, angle unresolved", elapsed)
     return None
 
 
@@ -570,7 +580,7 @@ def _scaled_image_for_attempt(base_image: Image.Image, attempt: int) -> tuple[Im
     return resized, scale
 
 
-def _infer_page_json(base_image: Image.Image) -> dict[str, Any]:
+def _infer_page_json(base_image: Image.Image, page_label: str) -> dict[str, Any]:
     attempts = max(1, VLLM_FORMAT_RETRY_ATTEMPTS)
     max_tokens = VLLM_MAX_TOKENS
     last_error = "Invalid JSON output format"
@@ -580,8 +590,27 @@ def _infer_page_json(base_image: Image.Image) -> dict[str, Any]:
         image_data_url = _pil_image_to_data_url(image_for_attempt)
         payload = _build_vllm_payload(image_data_url, max_tokens)
 
+        logger.info(
+            "[*] Sending %s to vLLM (attempt=%d/%d, size=%dx%d, scale=%.1f, max_tokens=%d)",
+            page_label,
+            attempt,
+            attempts,
+            image_for_attempt.width,
+            image_for_attempt.height,
+            image_scale,
+            max_tokens,
+        )
+        request_started = time.perf_counter()
+
         try:
             resp_json = _post_vllm(payload)
+            logger.info(
+                "[*] vLLM response received for %s (attempt=%d/%d) in %.2fs",
+                page_label,
+                attempt,
+                attempts,
+                time.perf_counter() - request_started,
+            )
         except error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             # Fallback for servers that do not support response_format.
@@ -628,6 +657,7 @@ def _infer_page_json(base_image: Image.Image) -> dict[str, Any]:
 
 
 def _load_image_for_inference(image_path: Path) -> Image.Image:
+    logger.info("[*] Preparing image %s for inference", image_path.name)
     with Image.open(image_path) as raw_image:
         image = raw_image.convert("RGB")
         normalized_image, angle = _normalize_orientation(image)
@@ -639,6 +669,7 @@ def _load_image_for_inference(image_path: Path) -> Image.Image:
 def _iter_pdf_page_images(pdf_path: Path) -> Iterable[tuple[int, Image.Image]]:
     with fitz.open(pdf_path) as doc:
         for page_idx, page in enumerate(doc):
+            logger.info("[*] Preparing PDF page %d for inference", page_idx)
             pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_SCALE, PDF_RENDER_SCALE), alpha=False)
             image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             normalized_image, angle = _normalize_orientation(image)
@@ -666,27 +697,39 @@ def _clear_cache_dir() -> None:
 
 def _cache_inference_results(temp_path: Path, original_filename: str | None) -> None:
     _clear_cache_dir()
+    LABELS_DIR.mkdir(parents=True, exist_ok=True)
 
     page_inputs = _iter_page_inputs(temp_path)
     original_stem = Path((original_filename or "document")).stem
     safe_stem = Path(original_stem).name
+    is_pdf_input = temp_path.suffix.lower() == ".pdf"
     page_count = 0
     success_count = 0
     logger.info("[*] Running vLLM inference and caching page outputs...")
 
     for page_idx, page_image in page_inputs:
         page_count += 1
+        page_label = f"{safe_stem}_page_{page_idx}"
+        logger.info("[*] Starting inference for %s", page_label)
+
         try:
-            parsed_json = _infer_page_json(page_image)
+            parsed_json = _infer_page_json(page_image, page_label)
             if "error" not in parsed_json:
                 success_count += 1
         except Exception as exc:
             logger.error(f"[-] Page {page_idx} inference failed: {exc}")
             parsed_json = {"error": str(exc)}
 
-        out_path = JSON_FILES_CACHE_DIR / f"{safe_stem}_{page_idx}.json"
+        out_name = f"{safe_stem}-{page_idx}.json" if is_pdf_input else f"{safe_stem}.json"
+        out_path = JSON_FILES_CACHE_DIR / out_name
         with out_path.open("w", encoding="utf-8") as f:
             json.dump(parsed_json, f, ensure_ascii=False, indent=2)
+
+        labels_out_path = LABELS_DIR / out_name
+        if labels_out_path != out_path:
+            with labels_out_path.open("w", encoding="utf-8") as f:
+                json.dump(parsed_json, f, ensure_ascii=False, indent=2)
+            logger.info(f"[*] Saved label JSON: {labels_out_path.name}")
 
         logger.info(f"[*] Cached page JSON: {out_path.name}")
 
@@ -704,8 +747,7 @@ async def classification_endpoint(file: UploadFile = File(...)):
 
     try:
         temp_path = await save_upload_to_temp(file, TMP_DIR, logger)
-        # vLLM calls and PDF rendering are blocking; run in a worker thread.
-        await run_in_threadpool(_cache_inference_results, temp_path, file.filename)
+        _cache_inference_results(temp_path, file.filename)
 
         class_array = load_static_classification(JSON_FILES_CACHE_DIR, logger)
         page_count = sum(len(item.get("pages", [])) for item in class_array)
@@ -727,7 +769,7 @@ async def classification_endpoint(file: UploadFile = File(...)):
 
 @app.post("/extract")
 async def extract_endpoint(file: UploadFile = File(...), document_type: str = Form(...)):
-    """Return cached JSON by uploaded filename, then delete that JSON cache file.
+    """Return cached JSON by uploaded filename.
 
     `document_type` is kept for API compatibility with existing clients.
     """
@@ -737,7 +779,7 @@ async def extract_endpoint(file: UploadFile = File(...), document_type: str = Fo
 
     try:
         temp_path = await save_upload_to_temp(file, TMP_DIR, logger)
-        cache_json_path = get_cached_json_path(file.filename or "", JSON_FILES_CACHE_DIR)
+        cache_json_path = get_cached_json_path(file.filename or "", LABELS_DIR)
         logger.info(f"[*] Loading cache JSON: {cache_json_path}")
 
         if not cache_json_path.exists():
@@ -763,5 +805,3 @@ async def extract_endpoint(file: UploadFile = File(...), document_type: str = Fo
 
     finally:
         safe_unlink(temp_path, "temporary file", logger)
-        # Requested behavior: consume cache file once and remove it after request.
-        safe_unlink(cache_json_path, "cache JSON file", logger)

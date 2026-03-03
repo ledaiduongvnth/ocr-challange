@@ -1,13 +1,26 @@
 import base64
+import io
 import json
 import logging
 import mimetypes
 import os
+import tempfile
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional, Sequence, Set, Tuple
 from urllib import error, request
 
 import fitz
+try:
+    import cv2
+except Exception:  # pragma: no cover - optional dependency
+    cv2 = None
+
+try:
+    import numpy as np
+except Exception:  # pragma: no cover - optional dependency
+    np = None
+
+from PIL import Image
 from fastapi import FastAPI, File, Form, UploadFile
 from starlette.concurrency import run_in_threadpool
 
@@ -19,6 +32,20 @@ from app_utils import (
     save_upload_to_temp,
     success_response,
 )
+
+
+def _get_positive_float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = float(raw_value)
+    except (TypeError, ValueError):
+        return default
+
+    return parsed if parsed > 0 else default
+
 
 # API returns JSON cached by filename in this directory.
 DEFAULT_CACHE_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/json_files_cache"
@@ -33,8 +60,8 @@ VLLM_API_KEY = os.environ.get("VLLM_API_KEY", "")
 VLLM_TIMEOUT_SEC = int(os.environ.get("VLLM_TIMEOUT_SEC", "300"))
 VLLM_MAX_TOKENS = int(os.environ.get("VLLM_MAX_TOKENS", "4096"))
 VLLM_TEMPERATURE = float(os.environ.get("VLLM_TEMPERATURE", "0.0"))
-VLLM_FORMAT_RETRY_ATTEMPTS = int(os.environ.get("VLLM_FORMAT_RETRY_ATTEMPTS", "3"))
-PDF_RENDER_SCALE = float(os.environ.get("PDF_RENDER_SCALE", "1"))
+VLLM_FORMAT_RETRY_ATTEMPTS = int(os.environ.get("VLLM_FORMAT_RETRY_ATTEMPTS", "5"))
+PDF_RENDER_SCALE = _get_positive_float_env("PDF_RENDER_SCALE", 1)
 
 SYSTEM_PROMPT = """
 You are an OCR assistant. Your task is Extract all information from the document image and return it as a single strictly formatted valid JSON object.
@@ -107,6 +134,279 @@ logging.basicConfig(
 logger = logging.getLogger("IDP_API")
 
 app = FastAPI(title="IDP Extraction & Classification API")
+
+_PADDLE_ORIENTATION_MODEL = None
+_PADDLE_ORIENTATION_ERROR: Optional[Exception] = None
+
+
+def _get_paddle_orientation_model():
+    global _PADDLE_ORIENTATION_MODEL, _PADDLE_ORIENTATION_ERROR
+
+    if _PADDLE_ORIENTATION_ERROR is not None:
+        return None
+
+    if _PADDLE_ORIENTATION_MODEL is None:
+        try:
+            from paddleocr import DocImgOrientationClassification
+
+            _PADDLE_ORIENTATION_MODEL = DocImgOrientationClassification(
+                model_name="PP-LCNet_x1_0_doc_ori",
+                device="cpu",
+            )
+            logger.info("[*] Loaded Paddle DocImgOrientationClassification on CPU")
+        except Exception as exc:  # pragma: no cover - optional dependency
+            _PADDLE_ORIENTATION_ERROR = exc
+            logger.warning("[-] Paddle orientation classifier unavailable: %s", exc)
+            return None
+
+    return _PADDLE_ORIENTATION_MODEL
+
+
+def _parse_angle_like(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            angle = _parse_angle_like(item)
+            if angle is not None:
+                return angle
+        return None
+
+    parsed: Optional[int]
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+
+        if stripped.isdigit() or (stripped.startswith("-") and stripped[1:].isdigit()):
+            parsed = int(stripped)
+        else:
+            digits = "".join(ch for ch in stripped if ch.isdigit() or ch == "-")
+            if not digits or digits == "-":
+                return None
+            try:
+                parsed = int(digits)
+            except ValueError:
+                return None
+    else:
+        try:
+            parsed = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None
+
+    normalized = parsed % 360
+    if normalized in (0, 90, 180, 270):
+        return normalized
+
+    return None
+
+
+def _parse_orientation_class_id(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            angle = _parse_orientation_class_id(item)
+            if angle is not None:
+                return angle
+        return None
+
+    try:
+        class_id = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+    if 0 <= class_id <= 3:
+        return class_id * 90
+
+    return None
+
+
+def _extract_angle_from_paddle_result(result: Any) -> Optional[int]:
+    if result is None:
+        return None
+
+    if isinstance(result, list):
+        for item in result:
+            angle = _extract_angle_from_paddle_result(item)
+            if angle is not None:
+                return angle
+        return None
+
+    payload = result.to_dict() if hasattr(result, "to_dict") else result
+
+    if isinstance(payload, dict):
+        legacy_info = payload.get("doc_preprocessor_res")
+        if legacy_info is not None:
+            info = legacy_info.to_dict() if hasattr(legacy_info, "to_dict") else legacy_info
+            if isinstance(info, dict):
+                angle = _parse_angle_like(info.get("angle"))
+            else:
+                angle = _parse_angle_like(getattr(info, "angle", None))
+            if angle is not None:
+                return angle
+
+        for key in ("angle", "label_name", "label", "label_names", "labels"):
+            angle = _parse_angle_like(payload.get(key))
+            if angle is not None:
+                return angle
+
+        for key in ("class_id", "class_ids"):
+            angle = _parse_orientation_class_id(payload.get(key))
+            if angle is not None:
+                return angle
+
+        for key in ("result", "results", "res", "output", "pred", "prediction"):
+            if key in payload:
+                angle = _extract_angle_from_paddle_result(payload[key])
+                if angle is not None:
+                    return angle
+
+    angle = _parse_angle_like(getattr(result, "angle", None))
+    if angle is not None:
+        return angle
+
+    angle = _parse_angle_like(getattr(result, "label_name", None))
+    if angle is not None:
+        return angle
+
+    angle = _parse_angle_like(getattr(result, "label_names", None))
+    if angle is not None:
+        return angle
+
+    angle = _parse_orientation_class_id(getattr(result, "class_id", None))
+    if angle is not None:
+        return angle
+
+    angle = _parse_orientation_class_id(getattr(result, "class_ids", None))
+    if angle is not None:
+        return angle
+
+    return None
+
+
+def detect_orientation_with_paddle(image: Image.Image) -> Optional[int]:
+    model = _get_paddle_orientation_model()
+    if model is None:
+        return None
+
+    temp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+            image.save(temp_file.name)
+            temp_file_path = temp_file.name
+
+        raw_predictions = model.predict(input=temp_file_path)
+        predictions = list(raw_predictions) if raw_predictions is not None else []
+    except Exception as exc:  # pragma: no cover - external dependency
+        logger.warning("[-] Paddle orientation detection failed: %s", exc)
+        return None
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except OSError:
+                pass
+
+    if not predictions:
+        return None
+
+    for prediction in predictions:
+        angle = _extract_angle_from_paddle_result(prediction)
+        if angle is not None:
+            return angle
+
+    return None
+
+
+def _compute_projection_metrics(image: Image.Image) -> Tuple[float, float, float, float]:
+    if np is None or cv2 is None:
+        return 0.0, 0.0, 0.0, 0.0
+
+    array = np.array(image.convert("L"))
+    if array.size == 0:
+        return 0.0, 0.0, 0.0, 0.0
+
+    array = cv2.GaussianBlur(array, (5, 5), 0)
+    _, thresh = cv2.threshold(array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    ink = 255 - thresh
+
+    horiz = ink.sum(axis=1).astype(np.float64)
+    vert = ink.sum(axis=0).astype(np.float64)
+    height, width = ink.shape
+
+    horiz_var = float(np.var(horiz) / (height * height + 1e-6))
+    vert_var = float(np.var(vert) / (width * width + 1e-6))
+
+    band_h = max(1, height // 4)
+    top = float(horiz[:band_h].sum())
+    bottom = float(horiz[-band_h:].sum())
+
+    band_w = max(1, width // 4)
+    left = float(vert[:band_w].sum())
+    right = float(vert[-band_w:].sum())
+
+    return horiz_var, vert_var, top - bottom, left - right
+
+
+def _select_best_rotation(
+    image: Image.Image,
+    angles: Sequence[int],
+    preferred: Set[int],
+) -> Tuple[Image.Image, int]:
+    best_angle = 0
+    best_image = image
+    best_key = (-float("inf"), -float("inf"), -float("inf"), -float("inf"), -float("inf"))
+    seen: set[int] = set()
+
+    for angle in angles:
+        normalized = int(angle) % 360
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+
+        rotated = image if normalized == 0 else image.rotate(normalized, expand=True)
+        horiz_var, vert_var, top_bottom, left_right = _compute_projection_metrics(rotated)
+
+        alignment_score = horiz_var - vert_var
+        rotation_penalty = -abs(normalized if normalized <= 180 else 360 - normalized)
+        key = (
+            alignment_score,
+            1 if normalized in preferred else 0,
+            left_right,
+            top_bottom,
+            rotation_penalty,
+        )
+
+        if key > best_key:
+            best_key = key
+            best_angle = normalized
+            best_image = rotated
+
+    return best_image, best_angle
+
+
+def _normalize_orientation(image: Image.Image) -> Tuple[Image.Image, int]:
+    paddle_angle = detect_orientation_with_paddle(image)
+    if paddle_angle is not None:
+        normalized = paddle_angle % 360
+        rotated = image if normalized == 0 else image.rotate(normalized, expand=True)
+        return rotated, normalized
+
+    # Fallback heuristic when Paddle orientation classifier is unavailable.
+    if np is not None and cv2 is not None:
+        return _select_best_rotation(image, (0, 90, 180, 270), set())
+
+    return image, 0
+
+
+def _pil_image_to_data_url(image: Image.Image) -> str:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
 
 
 def _extract_content(resp_json: dict[str, Any]) -> str:
@@ -250,12 +550,34 @@ def _post_vllm(payload: dict[str, Any]) -> dict[str, Any]:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _infer_page_json(image_data_url: str) -> dict[str, Any]:
+def _retry_scale_for_attempt(attempt: int) -> float:
+    return max(0.1, 1.0 - 0.1 * max(0, attempt - 1))
+
+
+def _scaled_image_for_attempt(base_image: Image.Image, attempt: int) -> tuple[Image.Image, float]:
+    scale = _retry_scale_for_attempt(attempt)
+    if scale >= 0.999:
+        return base_image, 1.0
+
+    new_width = max(1, int(round(base_image.width * scale)))
+    new_height = max(1, int(round(base_image.height * scale)))
+
+    if new_width == base_image.width and new_height == base_image.height:
+        return base_image, scale
+
+    resampling = getattr(Image, "Resampling", Image)
+    resized = base_image.resize((new_width, new_height), resampling.LANCZOS)
+    return resized, scale
+
+
+def _infer_page_json(base_image: Image.Image) -> dict[str, Any]:
     attempts = max(1, VLLM_FORMAT_RETRY_ATTEMPTS)
     max_tokens = VLLM_MAX_TOKENS
     last_error = "Invalid JSON output format"
 
     for attempt in range(1, attempts + 1):
+        image_for_attempt, image_scale = _scaled_image_for_attempt(base_image, attempt)
+        image_data_url = _pil_image_to_data_url(image_for_attempt)
         payload = _build_vllm_payload(image_data_url, max_tokens)
 
         try:
@@ -286,39 +608,52 @@ def _infer_page_json(image_data_url: str) -> dict[str, Any]:
 
         if attempt < attempts:
             max_tokens = _next_max_tokens(max_tokens)
+            next_scale = _retry_scale_for_attempt(attempt + 1)
             logger.warning(
-                "[-] Wrong output format on attempt %d/%d (%s). Retrying with max_tokens=%d",
+                "[-] Wrong output format on attempt %d/%d (%s). Retrying with max_tokens=%d, image_scale=%.1f",
                 attempt,
                 attempts,
                 last_error,
                 max_tokens,
+                next_scale,
             )
-            logger.warning("[-] Raw model response on attempt %d: %s", attempt, raw_text or "<empty>")
+            logger.warning(
+                "[-] Raw model response on attempt %d (image_scale=%.1f): %s",
+                attempt,
+                image_scale,
+                raw_text or "<empty>",
+            )
 
     return {"error": f"{last_error} after {attempts} attempts"}
 
 
-def _image_path_to_data_url(image_path: Path) -> str:
-    mime = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
-    encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
-    return f"data:{mime};base64,{encoded}"
+def _load_image_for_inference(image_path: Path) -> Image.Image:
+    with Image.open(image_path) as raw_image:
+        image = raw_image.convert("RGB")
+        normalized_image, angle = _normalize_orientation(image)
+        if angle:
+            logger.info("[*] Rotated image %s by %d degrees before inference", image_path.name, angle)
+        return normalized_image.copy()
 
 
-def _iter_pdf_page_data_urls(pdf_path: Path) -> Iterable[tuple[int, str]]:
+def _iter_pdf_page_images(pdf_path: Path) -> Iterable[tuple[int, Image.Image]]:
     with fitz.open(pdf_path) as doc:
         for page_idx, page in enumerate(doc):
             pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_SCALE, PDF_RENDER_SCALE), alpha=False)
-            encoded = base64.b64encode(pix.tobytes("png")).decode("utf-8")
-            yield page_idx, f"data:image/png;base64,{encoded}"
+            image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            normalized_image, angle = _normalize_orientation(image)
+            if angle:
+                logger.info("[*] Rotated PDF page %d by %d degrees before inference", page_idx, angle)
+            yield page_idx, normalized_image
 
 
-def _iter_page_inputs(temp_path: Path) -> Iterable[tuple[int, str]]:
+def _iter_page_inputs(temp_path: Path) -> Iterable[tuple[int, Image.Image]]:
     suffix = temp_path.suffix.lower()
     if suffix == ".pdf":
-        return _iter_pdf_page_data_urls(temp_path)
+        return _iter_pdf_page_images(temp_path)
 
     if suffix in IMAGE_EXTENSIONS:
-        return [(0, _image_path_to_data_url(temp_path))]
+        return [(0, _load_image_for_inference(temp_path))]
 
     raise ValueError(f"Unsupported upload format: '{suffix}'. Use PDF or image file.")
 
@@ -339,10 +674,10 @@ def _cache_inference_results(temp_path: Path, original_filename: str | None) -> 
     success_count = 0
     logger.info("[*] Running vLLM inference and caching page outputs...")
 
-    for page_idx, data_url in page_inputs:
+    for page_idx, page_image in page_inputs:
         page_count += 1
         try:
-            parsed_json = _infer_page_json(data_url)
+            parsed_json = _infer_page_json(page_image)
             if "error" not in parsed_json:
                 success_count += 1
         except Exception as exc:

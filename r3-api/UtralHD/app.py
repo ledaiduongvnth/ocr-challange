@@ -4,6 +4,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -26,7 +27,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 
 from app_utils import (
     error_response,
-    get_cached_json_path,
+    get_document_level_json_path,
     load_static_classification,
     safe_unlink,
     save_upload_to_temp,
@@ -47,11 +48,26 @@ def _get_positive_float_env(name: str, default: float) -> float:
     return parsed if parsed > 0 else default
 
 
+def _get_positive_int_env(name: str, default: int) -> int:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+
+    return parsed if parsed > 0 else default
+
+
 # API returns JSON cached by filename in this directory.
 DEFAULT_CACHE_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/json_files_cache"
 DEFAULT_LABELS_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/labels"
+DEFAULT_DOCUMENT_LEVEL_DIR = "/media/drive-2t/hoangnv83/code/ocr/ocr-challange-duong/r3-api/UtralHD/document_level_json"
 JSON_FILES_CACHE_DIR = Path(os.environ.get("JSON_FILES_CACHE_DIR", DEFAULT_CACHE_DIR))
 LABELS_DIR = Path(os.environ.get("LABELS_DIR", DEFAULT_LABELS_DIR))
+DOCUMENT_LEVEL_JSON_DIR = Path(os.environ.get("DOCUMENT_LEVEL_JSON_DIR", DEFAULT_DOCUMENT_LEVEL_DIR))
 TMP_DIR = Path("/tmp")
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
 
@@ -62,8 +78,12 @@ VLLM_API_KEY = os.environ.get("VLLM_API_KEY", "")
 VLLM_TIMEOUT_SEC = int(os.environ.get("VLLM_TIMEOUT_SEC", "300"))
 VLLM_MAX_TOKENS = int(os.environ.get("VLLM_MAX_TOKENS", "4096"))
 VLLM_TEMPERATURE = float(os.environ.get("VLLM_TEMPERATURE", "0.0"))
-VLLM_FORMAT_RETRY_ATTEMPTS = int(os.environ.get("VLLM_FORMAT_RETRY_ATTEMPTS", "5"))
-PDF_RENDER_SCALE = _get_positive_float_env("PDF_RENDER_SCALE", 1)
+VLLM_FORMAT_RETRY_ATTEMPTS = int(os.environ.get("VLLM_FORMAT_RETRY_ATTEMPTS", "3"))
+# 1.0 scale ~= 72 DPI in PDF user-space units.
+# 2.0 scale (~144 DPI) is a stronger default for OCR while still practical for vLLM.
+PDF_RENDER_SCALE = _get_positive_float_env("PDF_RENDER_SCALE", 2.2)
+PDF_RENDER_MAX_SIDE_PX = _get_positive_int_env("PDF_RENDER_MAX_SIDE_PX", 2500)
+PDF_RENDER_MAX_PIXELS = _get_positive_int_env("PDF_RENDER_MAX_PIXELS", 4_800_000)
 
 SYSTEM_PROMPT = """
 You are an OCR assistant. Your task is Extract all information from the document image and return it as a single strictly formatted valid JSON object.
@@ -540,7 +560,7 @@ def _validate_output_schema(parsed_json: dict[str, Any]) -> str | None:
 
 
 def _next_max_tokens(current_max_tokens: int) -> int:
-    return max(current_max_tokens + 512, int(current_max_tokens * 1.5))
+    return max(current_max_tokens + 512, int(current_max_tokens * 1.1))
 
 
 def _post_vllm(payload: dict[str, Any]) -> dict[str, Any]:
@@ -561,23 +581,26 @@ def _post_vllm(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _retry_scale_for_attempt(attempt: int) -> float:
-    return max(0.1, 1.0 - 0.1 * max(0, attempt - 1))
+    return 1.0 + 0.05 * max(0, attempt - 1)
 
 
 def _scaled_image_for_attempt(base_image: Image.Image, attempt: int) -> tuple[Image.Image, float]:
     scale = _retry_scale_for_attempt(attempt)
-    if scale >= 0.999:
+    if abs(scale - 1.0) <= 1e-3:
         return base_image, 1.0
 
     new_width = max(1, int(round(base_image.width * scale)))
     new_height = max(1, int(round(base_image.height * scale)))
 
     if new_width == base_image.width and new_height == base_image.height:
-        return base_image, scale
+        return base_image, 1.0
 
     resampling = getattr(Image, "Resampling", Image)
     resized = base_image.resize((new_width, new_height), resampling.LANCZOS)
-    return resized, scale
+    applied_scale_x = new_width / base_image.width
+    applied_scale_y = new_height / base_image.height
+    applied_scale = (applied_scale_x + applied_scale_y) / 2.0
+    return resized, applied_scale
 
 
 def _infer_page_json(base_image: Image.Image, page_label: str) -> dict[str, Any]:
@@ -670,7 +693,36 @@ def _iter_pdf_page_images(pdf_path: Path) -> Iterable[tuple[int, Image.Image]]:
     with fitz.open(pdf_path) as doc:
         for page_idx, page in enumerate(doc):
             logger.info("[*] Preparing PDF page %d for inference", page_idx)
-            pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_SCALE, PDF_RENDER_SCALE), alpha=False)
+            requested_scale = PDF_RENDER_SCALE
+            page_width = max(1.0, float(page.rect.width))
+            page_height = max(1.0, float(page.rect.height))
+            effective_scale = requested_scale
+
+            side_scale_limit = PDF_RENDER_MAX_SIDE_PX / max(page_width, page_height)
+            pixel_scale_limit = (PDF_RENDER_MAX_PIXELS / (page_width * page_height)) ** 0.5
+            effective_scale = min(effective_scale, side_scale_limit, pixel_scale_limit)
+            effective_scale = max(0.1, effective_scale)
+
+            effective_dpi = 72.0 * effective_scale
+            if effective_scale + 1e-6 < requested_scale:
+                logger.info(
+                    "[*] PDF page %d render scale capped from %.2f to %.2f (dpi=%.0f, max_side=%d, max_pixels=%d)",
+                    page_idx,
+                    requested_scale,
+                    effective_scale,
+                    effective_dpi,
+                    PDF_RENDER_MAX_SIDE_PX,
+                    PDF_RENDER_MAX_PIXELS,
+                )
+            else:
+                logger.info(
+                    "[*] PDF page %d render scale=%.2f (dpi=%.0f)",
+                    page_idx,
+                    effective_scale,
+                    effective_dpi,
+                )
+
+            pix = page.get_pixmap(matrix=fitz.Matrix(effective_scale, effective_scale), alpha=False)
             image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             normalized_image, angle = _normalize_orientation(image)
             if angle:
@@ -689,20 +741,393 @@ def _iter_page_inputs(temp_path: Path) -> Iterable[tuple[int, Image.Image]]:
     raise ValueError(f"Unsupported upload format: '{suffix}'. Use PDF or image file.")
 
 
-def _clear_cache_dir() -> None:
+def _extract_page_number_from_stem(stem: str) -> int | None:
+    page_pattern = re.search(r"(?:^|[_-])page[_-]?(\d+)$", stem, flags=re.IGNORECASE)
+    if page_pattern:
+        return int(page_pattern.group(1))
+
+    trailing_number = re.search(r"(?:[_-])(\d+)$", stem)
+    if trailing_number:
+        return int(trailing_number.group(1))
+
+    return None
+
+
+def _page_json_sort_key(path: Path) -> tuple[int, int, str]:
+    page_number = _extract_page_number_from_stem(path.stem)
+    if page_number is None:
+        return (1, 10**9, path.name.lower())
+    return (0, page_number, path.name.lower())
+
+
+def _is_freetext_like_key(key: str) -> bool:
+    # Accept FreeText1, FreeText1_1, FreeText1_1_1, ...
+    return bool(re.fullmatch(r"FreeText(?:\d+)?(?:_\d+)*", key))
+
+
+def _merge_page_jsons(target: dict[str, Any], source: dict[str, Any]) -> None:
+    for key, value in source.items():
+        if key not in target:
+            target[key] = value
+            continue
+
+        existing = target[key]
+        if isinstance(existing, dict) and isinstance(value, dict):
+            _merge_page_jsons(existing, value)
+            continue
+
+        if isinstance(existing, list) and isinstance(value, list):
+            existing.extend(value)
+            continue
+
+        # Keep every FreeText fragment even if repeated (important for long-table page splits).
+        if existing == value and not _is_freetext_like_key(key):
+            continue
+
+        duplicate_idx = 1
+        duplicate_key = f"{key}_{duplicate_idx}"
+        while duplicate_key in target:
+            duplicate_idx += 1
+            duplicate_key = f"{key}_{duplicate_idx}"
+        target[duplicate_key] = value
+
+
+def _is_table_rows(value: Any) -> bool:
+    return isinstance(value, list) and bool(value) and all(isinstance(row, dict) for row in value)
+
+
+def _normalize_header_name(header: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", header.lower())
+
+
+def _is_implicit_column_headers(headers: list[str]) -> bool:
+    return all(re.fullmatch(r"column\d+", header.lower()) for header in headers)
+
+
+def _build_table_merge_plan(
+    track_headers: list[str],
+    new_headers: list[str],
+) -> tuple[float, dict[str, str]] | None:
+    if not track_headers or not new_headers:
+        return None
+
+    if track_headers == new_headers:
+        return 1.0, {header: header for header in new_headers}
+
+    track_implicit = _is_implicit_column_headers(track_headers)
+    new_implicit = _is_implicit_column_headers(new_headers)
+
+    if len(track_headers) == len(new_headers):
+        if track_implicit and new_implicit:
+            return 0.90, {src: dst for src, dst in zip(new_headers, track_headers)}
+
+        if (not track_implicit) and new_implicit:
+            return 0.88, {src: dst for src, dst in zip(new_headers, track_headers)}
+
+        if track_implicit and (not new_implicit):
+            return 0.82, {src: dst for src, dst in zip(new_headers, track_headers)}
+
+    # Some OCR pages lose one trailing table column on continuation pages.
+    # If one side is implicit ColumnN headers and the structures are near-equal,
+    # align by column order and merge as the same running table.
+    if abs(len(track_headers) - len(new_headers)) <= 1:
+        min_cols = min(len(track_headers), len(new_headers))
+        if min_cols >= 3:
+            if track_implicit and new_implicit:
+                return 0.86, {
+                    src: track_headers[idx]
+                    for idx, src in enumerate(new_headers[:min_cols])
+                }
+
+            if (not track_implicit) and new_implicit:
+                return 0.84, {
+                    src: track_headers[idx]
+                    for idx, src in enumerate(new_headers[:min_cols])
+                }
+
+            if track_implicit and (not new_implicit):
+                return 0.80, {
+                    src: track_headers[idx]
+                    for idx, src in enumerate(new_headers[:min_cols])
+                }
+
+    normalized_track = {_normalize_header_name(header): header for header in track_headers}
+    mapping: dict[str, str] = {}
+    for src in new_headers:
+        normalized_src = _normalize_header_name(src)
+        dst = normalized_track.get(normalized_src)
+        if dst:
+            mapping[src] = dst
+
+    overlap = len(mapping)
+    if overlap == 0:
+        return None
+
+    coverage = overlap / max(1, len(track_headers))
+    if coverage < 0.60:
+        return None
+
+    score = 0.70 + 0.20 * min(1.0, coverage)
+    return score, mapping
+
+
+def _append_table_rows(
+    table_rows: list[dict[str, Any]],
+    incoming_rows: list[dict[str, Any]],
+    mapping: dict[str, str],
+    ordered_headers: list[str],
+) -> None:
+    for row in incoming_rows:
+        if not isinstance(row, dict):
+            continue
+
+        remapped: dict[str, Any] = {header: "" for header in ordered_headers}
+        for src_key, src_value in row.items():
+            dst_key = mapping.get(src_key)
+            if dst_key is None:
+                continue
+            remapped[dst_key] = src_value
+
+        table_rows.append(remapped)
+
+
+def _allocate_unique_object_key(merged_result: dict[str, Any], base_key: str) -> str:
+    if base_key not in merged_result:
+        return base_key
+
+    duplicate_idx = 1
+    duplicate_key = f"{base_key}_{duplicate_idx}"
+    while duplicate_key in merged_result:
+        duplicate_idx += 1
+        duplicate_key = f"{base_key}_{duplicate_idx}"
+    return duplicate_key
+
+
+def _merge_page_with_table_tracks(
+    merged_result: dict[str, Any],
+    table_tracks: list[dict[str, Any]],
+    page_json: dict[str, Any],
+    page_idx: int,
+) -> None:
+    non_table_payload: dict[str, Any] = {}
+    continuation_track_idx: int | None = None
+
+    for key, value in page_json.items():
+        if not _is_table_rows(value):
+            non_table_payload[key] = value
+            continue
+
+        headers = list(value[0].keys())
+        best_track_idx: int | None = None
+        best_plan: tuple[float, dict[str, str]] | None = None
+        best_score = -1.0
+
+        for track_idx, track in enumerate(table_tracks):
+            if page_idx - track["last_page"] not in (0, 1):
+                continue
+
+            plan = _build_table_merge_plan(track["headers"], headers)
+            if plan is None:
+                continue
+
+            score = plan[0]
+            if page_idx - track["last_page"] == 1:
+                score += 0.05
+            if track["key"] == key:
+                score += 0.03
+
+            if score > best_score:
+                best_score = score
+                best_track_idx = track_idx
+                best_plan = plan
+
+        if best_track_idx is None or best_plan is None:
+            initial_rows = [dict(row) for row in value if isinstance(row, dict)]
+            output_key = _allocate_unique_object_key(merged_result, key)
+            merged_result[output_key] = initial_rows
+            table_tracks.append(
+                {
+                    "key": key,
+                    "output_key": output_key,
+                    "headers": headers,
+                    "rows": initial_rows,
+                    "last_page": page_idx,
+                    "first_page": page_idx,
+                }
+            )
+            continue
+
+        track = table_tracks[best_track_idx]
+        _, mapping = best_plan
+        _append_table_rows(track["rows"], value, mapping, track["headers"])
+
+        # Mark this page as table-continuation if the track already existed before.
+        if page_idx > track.get("first_page", page_idx):
+            continuation_track_idx = best_track_idx
+
+        track["last_page"] = page_idx
+
+    if non_table_payload:
+        freetext_payload = {k: v for k, v in non_table_payload.items() if _is_freetext_like_key(k)}
+        other_payload = {k: v for k, v in non_table_payload.items() if not _is_freetext_like_key(k)}
+
+        if continuation_track_idx is not None and freetext_payload:
+            logger.info("[*] Dropped FreeText on page %d because it is between merged table parts", page_idx)
+        elif freetext_payload:
+            _merge_page_jsons(merged_result, freetext_payload)
+
+        if other_payload:
+            _merge_page_jsons(merged_result, other_payload)
+
+
+def _flush_table_tracks_into_result(merged_result: dict[str, Any], table_tracks: list[dict[str, Any]]) -> None:
+    # Tables are inserted at first-seen position during merge to preserve object order.
+    _ = (merged_result, table_tracks)
+
+
+
+def _indexed_group_name(key: str) -> str | None:
+    for group in ("FreeText", "Table", "Section"):
+        # Accept keys like FreeText, FreeText1, FreeText1_1, Table2, Section3_2.
+        if re.fullmatch(rf"{group}(?:\d+)?(?:_\d+)*", key):
+            return group
+    return None
+
+
+def _normalize_group_index_keys(node: Any) -> Any:
+    if isinstance(node, list):
+        return [_normalize_group_index_keys(item) for item in node]
+
+    if not isinstance(node, dict):
+        return node
+
+    counters = {"FreeText": 0, "Table": 0, "Section": 0}
+    normalized: dict[str, Any] = {}
+
+    for key, value in node.items():
+        normalized_value = _normalize_group_index_keys(value)
+        group = _indexed_group_name(key)
+
+        if group is None:
+            new_key = key
+        else:
+            counters[group] += 1
+            new_key = f"{group}{counters[group]}"
+
+        if new_key in normalized:
+            duplicate_idx = 1
+            candidate = f"{new_key}_{duplicate_idx}"
+            while candidate in normalized:
+                duplicate_idx += 1
+                candidate = f"{new_key}_{duplicate_idx}"
+            new_key = candidate
+
+        normalized[new_key] = normalized_value
+
+    return normalized
+
+
+def _reorder_document_level_keys(payload: dict[str, Any]) -> dict[str, Any]:
+    """Keep FreeText after table blocks in final document-level JSON."""
+    other_items: list[tuple[str, Any]] = []
+    table_items: list[tuple[str, Any]] = []
+    freetext_items: list[tuple[str, Any]] = []
+
+    for key, value in payload.items():
+        if _is_freetext_like_key(key):
+            freetext_items.append((key, value))
+            continue
+
+        if _indexed_group_name(key) == "Table" or _is_table_rows(value):
+            table_items.append((key, value))
+            continue
+
+        other_items.append((key, value))
+
+    reordered: dict[str, Any] = {}
+    for key, value in [*other_items, *table_items, *freetext_items]:
+        reordered[key] = value
+
+    return reordered
+
+
+def _save_document_level_results(
+    request_cache_dir: Path,
+    original_filename: str | None,
+    class_array: list[dict[str, Any]],
+) -> None:
+    DOCUMENT_LEVEL_JSON_DIR.mkdir(parents=True, exist_ok=True)
+
+    safe_stem = Path(Path(original_filename or "document").stem).name
+    json_paths = sorted(request_cache_dir.glob("*.json"), key=_page_json_sort_key)
+
+    page_data_by_index: dict[int, dict[str, Any]] = {}
+    for fallback_index, json_path in enumerate(json_paths):
+        page_number = _extract_page_number_from_stem(json_path.stem)
+        page_index = fallback_index if page_number is None else page_number
+
+        try:
+            with json_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:
+            logger.warning("[-] Failed to load page JSON for document-level merge (%s): %s", json_path.name, exc)
+            continue
+
+        if isinstance(data, dict):
+            page_data_by_index[page_index] = data
+
+    valid_doc_items = [
+        doc_item
+        for doc_item in class_array
+        if isinstance(doc_item.get("index"), int) and isinstance(doc_item.get("pages"), list)
+    ]
+    single_document_mode = len(valid_doc_items) == 1
+
+    for doc_item in valid_doc_items:
+        doc_index = doc_item.get("index")
+        pages = doc_item.get("pages", [])
+
+        merged_result: dict[str, Any] = {}
+        table_tracks: list[dict[str, Any]] = []
+        for page_idx in pages:
+            page_json = page_data_by_index.get(page_idx)
+            if page_json is None:
+                logger.warning("[-] Missing page JSON for merge: doc_index=%s page=%s", doc_index, page_idx)
+                continue
+            _merge_page_with_table_tracks(merged_result, table_tracks, page_json, page_idx)
+
+        _flush_table_tracks_into_result(merged_result, table_tracks)
+        normalized_result = _normalize_group_index_keys(merged_result)
+        out_name = f"{safe_stem}.json" if single_document_mode else f"{safe_stem}-{doc_index}.json"
+        out_path = DOCUMENT_LEVEL_JSON_DIR / out_name
+        with out_path.open("w", encoding="utf-8") as f:
+            json.dump(normalized_result, f, ensure_ascii=False, indent=2)
+        logger.info("[*] Saved document-level JSON: %s", out_path.name)
+
+
+def _ensure_output_dirs() -> None:
     JSON_FILES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    for old_json in JSON_FILES_CACHE_DIR.glob("*.json"):
-        safe_unlink(old_json, "stale cache JSON file", logger)
-
-
-def _cache_inference_results(temp_path: Path, original_filename: str | None) -> None:
-    _clear_cache_dir()
     LABELS_DIR.mkdir(parents=True, exist_ok=True)
+    DOCUMENT_LEVEL_JSON_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _cache_inference_results(temp_path: Path, original_filename: str | None) -> Path:
+    _ensure_output_dirs()
 
     page_inputs = _iter_page_inputs(temp_path)
     original_stem = Path((original_filename or "document")).stem
     safe_stem = Path(original_stem).name
+    request_cache_dir = JSON_FILES_CACHE_DIR / safe_stem
+    request_cache_dir.mkdir(parents=True, exist_ok=True)
+    for old_json in request_cache_dir.glob("*.json"):
+        safe_unlink(old_json, "stale per-file cache JSON file", logger)
+
     is_pdf_input = temp_path.suffix.lower() == ".pdf"
+    total_pdf_pages = 0
+    if is_pdf_input:
+        with fitz.open(temp_path) as doc:
+            total_pdf_pages = doc.page_count
+
     page_count = 0
     success_count = 0
     logger.info("[*] Running vLLM inference and caching page outputs...")
@@ -720,8 +1145,8 @@ def _cache_inference_results(temp_path: Path, original_filename: str | None) -> 
             logger.error(f"[-] Page {page_idx} inference failed: {exc}")
             parsed_json = {"error": str(exc)}
 
-        out_name = f"{safe_stem}-{page_idx}.json" if is_pdf_input else f"{safe_stem}.json"
-        out_path = JSON_FILES_CACHE_DIR / out_name
+        out_name = f"{safe_stem}-{page_idx}.json" if (is_pdf_input and total_pdf_pages > 1) else f"{safe_stem}.json"
+        out_path = request_cache_dir / out_name
         with out_path.open("w", encoding="utf-8") as f:
             json.dump(parsed_json, f, ensure_ascii=False, indent=2)
 
@@ -738,6 +1163,8 @@ def _cache_inference_results(temp_path: Path, original_filename: str | None) -> 
     if success_count == 0:
         raise RuntimeError("Inference failed for all pages")
 
+    return request_cache_dir
+
 
 @app.post("/classification")
 async def classification_endpoint(file: UploadFile = File(...)):
@@ -747,10 +1174,11 @@ async def classification_endpoint(file: UploadFile = File(...)):
 
     try:
         temp_path = await save_upload_to_temp(file, TMP_DIR, logger)
-        _cache_inference_results(temp_path, file.filename)
+        request_cache_dir = _cache_inference_results(temp_path, file.filename)
 
-        class_array = load_static_classification(JSON_FILES_CACHE_DIR, logger)
+        class_array = load_static_classification(request_cache_dir, logger)
         page_count = sum(len(item.get("pages", [])) for item in class_array)
+        _save_document_level_results(request_cache_dir, file.filename, class_array)
 
         logger.info(f"[*] Classification ready ({page_count} pages).")
         return success_response(page_count=page_count, classification=class_array)
@@ -779,11 +1207,20 @@ async def extract_endpoint(file: UploadFile = File(...), document_type: str = Fo
 
     try:
         temp_path = await save_upload_to_temp(file, TMP_DIR, logger)
-        cache_json_path = get_cached_json_path(file.filename or "", LABELS_DIR)
-        logger.info(f"[*] Loading cache JSON: {cache_json_path}")
+        cache_json_path = get_document_level_json_path(file.filename or "", DOCUMENT_LEVEL_JSON_DIR)
+        logger.info(f"[*] Loading document-level JSON: {cache_json_path}")
 
         if not cache_json_path.exists():
-            return error_response(f"Cached JSON not found for file '{file.filename}'", status_code=404)
+            stem = Path(Path(file.filename or "").name).stem
+            candidates = sorted(DOCUMENT_LEVEL_JSON_DIR.glob(f"{stem}-*.json"))
+            if len(candidates) == 1:
+                cache_json_path = candidates[0]
+                logger.info(f"[*] Fallback to single matched document-level JSON: {cache_json_path}")
+            else:
+                return error_response(
+                    f"Document-level JSON not found for file '{file.filename}'",
+                    status_code=404,
+                )
 
         with cache_json_path.open("r", encoding="utf-8") as f:
             parsed_result = json.load(f)

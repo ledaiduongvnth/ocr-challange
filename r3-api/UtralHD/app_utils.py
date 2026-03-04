@@ -47,12 +47,23 @@ async def save_upload_to_temp(file: UploadFile, tmp_dir: Path, logger: Logger) -
 
 
 def get_cached_json_path(upload_filename: str, cache_dir: Path) -> Path:
-    """Map uploaded filename to cache JSON path using filename stem."""
+    """Map uploaded filename to nested cache JSON path using filename stem."""
     safe_name = Path(upload_filename or "").name
     if not safe_name:
         raise ValueError("Uploaded file must include a valid filename")
+    stem = Path(safe_name).stem
+    base_stem, sep, tail = stem.rpartition("-")
+    parent_dir = base_stem if sep and tail.isdigit() and base_stem else stem
+    return cache_dir / parent_dir / f"{stem}.json"
 
-    return cache_dir / f"{Path(safe_name).stem}.json"
+def get_document_level_json_path(upload_filename: str, document_level_dir: Path) -> Path:
+    """Map uploaded filename to document-level JSON path (flat directory)."""
+    safe_name = Path(upload_filename or "").name
+    if not safe_name:
+        raise ValueError("Uploaded file must include a valid filename")
+    stem = Path(safe_name).stem
+    return document_level_dir / f"{stem}.json"
+
 
 
 def _extract_raw_document_type(data: Any) -> str | None:
@@ -102,7 +113,7 @@ def _extract_page_number(stem: str) -> int | None:
     if page_pattern:
         return int(page_pattern.group(1))
 
-    trailing_number = re.search(r"(\d+)$", stem)
+    trailing_number = re.search(r"(?:[_-])(\d+)$", stem)
     if trailing_number:
         return int(trailing_number.group(1))
 
